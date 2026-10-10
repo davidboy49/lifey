@@ -53,8 +53,13 @@ export function Nav() {
   return (
     <>
       <aside className="fixed inset-y-0 left-0 hidden w-[232px] flex-col border-r border-line bg-panel px-4 py-6 md:flex">
-        <Link href="/" className="mb-8 px-3 font-display text-[26px] font-semibold tracking-tight">
-          lifey<span className="text-accent">.</span>
+        <Link href="/" className="mb-8 flex items-center gap-3 px-2" aria-label="Lifey home">
+          {/* Light tile: the mark's navy figure needs a light ground in dark mode. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/lifey-mark.webp" width={40} height={40} alt="" className="size-10 rounded-xl border border-line" />
+          <span className="font-display text-[26px] font-semibold tracking-tight">
+            lifey<span className="text-accent">.</span>
+          </span>
         </Link>
         <nav className="flex flex-1 flex-col gap-1" aria-label="Main">
           {ITEMS.map((it) => (

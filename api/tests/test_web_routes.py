@@ -29,3 +29,23 @@ def test_page_files_are_not_git_ignored():
     pages = [str(p.relative_to(WEB.parent)) for p in (WEB / "app").rglob("page.tsx")]
     result = subprocess.run(["git", "check-ignore", *pages], cwd=WEB.parent, capture_output=True, text=True)
     assert result.stdout.strip() == "", f"ignored by git: {result.stdout.strip()}"
+
+
+def test_every_public_asset_the_app_references_exists_and_is_not_ignored():
+    """The sign-in page loads /brand/... before login; a missing file is a broken logo."""
+    import re
+    import subprocess
+
+    referenced: set[str] = set()
+    for path in list((WEB / "app").rglob("*.ts*")) + list((WEB / "components").rglob("*.tsx")):
+        referenced |= set(re.findall(r'["\'`](/(?:brand|icons)/[A-Za-z0-9._-]+)["\'`]', path.read_text(encoding="utf-8")))
+    assert {"/brand/lifey-logo.webp", "/brand/lifey-mark.webp", "/icons/icon-192.png"} <= referenced
+    files = []
+    for url in sorted(referenced):
+        file = WEB / "public" / url.lstrip("/")
+        assert file.exists(), f"{url} is referenced but web/public{url} does not exist"
+        files.append(str(file.relative_to(WEB.parent)))
+    ignored = subprocess.run(["git", "check-ignore", *files], cwd=WEB.parent, capture_output=True, text=True).stdout
+    assert ignored.strip() == "", f"ignored by git: {ignored.strip()}"
+    for icon in ("icon.png", "apple-icon.png", "favicon.ico"):
+        assert (WEB / "app" / icon).exists(), f"web/app/{icon} missing"

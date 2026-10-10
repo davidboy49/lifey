@@ -12,7 +12,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export const viewport: Viewport = { viewportFit: "cover", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = {
+  viewportFit: "cover", width: "device-width", initialScale: 1, themeColor: "#3447d8",
+};
 
 // Applies the saved theme before first paint so there is no flash.
 const THEME_BOOT = `try{var t=localStorage.getItem("lifey-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;

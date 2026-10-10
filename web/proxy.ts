@@ -16,6 +16,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except the API (which answers 401 itself) and Next internals.
-  matcher: ["/((?!api/|_next/|favicon.ico).*)"],
+  // Everything except the API (which answers 401 itself), Next internals and the public
+  // brand assets: the sign-in page has to show its logo before anyone is signed in.
+  matcher: [
+    "/((?!api/|_next/|brand/|icons/|favicon.ico|icon.png|apple-icon.png|manifest.webmanifest).*)",
+  ],
 };

@@ -34,6 +34,10 @@ cd web && npm install && npm run dev      # http://localhost:3000
 
 Or the full stack: copy `.env.example` to `.env`, then `docker compose up --build` and open http://localhost:8080.
 
+## Brand
+
+The source logo is `brand/lifey-logo.png`. `python brand/make_assets.py` (needs Pillow) derives everything the web app uses: the in-page logo and mark (`web/public/brand/*.webp`), the install and home-screen icons (`web/public/icons`), and the favicon files in `web/app`. The outputs are committed, so the Docker build needs no image tooling. To change the logo, replace the source and re-run the script.
+
 ## Authentication
 
 Lifey has its own login; nothing in `/api` is readable without a session (a test enumerates the OpenAPI schema to keep it that way).

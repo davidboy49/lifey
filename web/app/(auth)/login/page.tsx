@@ -42,9 +42,14 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-dvh items-center justify-center px-4 py-10">
       <div className="w-full max-w-[400px]">
-        <p className="mb-8 text-center font-display text-[34px] font-semibold tracking-tight">
-          lifey<span className="text-accent">.</span>
-        </p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/lifey-logo.webp"
+          width={150}
+          height={205}
+          alt="Lifey"
+          className="mx-auto mb-8 h-auto w-[150px] rounded-3xl border border-line"
+        />
         <form onSubmit={submit} className="card rise flex flex-col gap-5 p-7" aria-describedby="login-error">
           <div>
             <h1 className="font-display text-2xl font-semibold">Sign in</h1>
