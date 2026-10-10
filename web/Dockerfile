@@ -7,6 +7,9 @@ FROM node:24-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# next.config bakes the /api rewrite target at build time.
+ARG API_URL=http://api:8000
+ENV API_URL=$API_URL NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 FROM node:24-slim

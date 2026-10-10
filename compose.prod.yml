@@ -1,0 +1,48 @@
+# Production stack for a shared VPS: nginx already owns 80/443, so every port
+# here is bound to loopback and each container has a memory ceiling.
+# Images are built by deploy/deploy.sh (memory-capped), not by compose.
+name: lifey
+
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=20"]
+    environment:
+      POSTGRES_USER: lifey
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run deploy/deploy.sh once to create .env}
+      POSTGRES_DB: lifey
+    volumes:
+      - pgdata:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5439:5432"   # for ssh-tunnelled imports only
+    mem_limit: 320m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifey"]
+      interval: 5s
+      retries: 12
+
+  api:
+    image: lifey-api:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8101:8000"
+    mem_limit: 256m
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: lifey-web:latest
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "127.0.0.1:8100:3000"
+    mem_limit: 256m
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
