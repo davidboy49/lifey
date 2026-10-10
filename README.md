@@ -74,6 +74,14 @@ python -m app.health.sync backfill 30 --force
 
 Exit status is non-zero for partial or failed runs. `GET /api/health/sync` returns the last run.
 
+### Bridge to the running vidhealth (temporary)
+
+While the old sync, bot, dashboard and MCP server still depend on the old database, it stays the only Garmin client. `lifey-follow.timer` (every 30 minutes, `deploy/follow.sh`) replays the last 7 days of its source payloads into Lifey through a read-only session. Lifey does not contact Garmin while this bridge is in use. When the consumers have moved over, disable the old `garmin-sync.timer`, set `GARMIN_EMAIL`/`GARMIN_PASSWORD` in `.env`, run `docker compose -f compose.prod.yml run --rm sync` on a timer, and remove the follower.
+
+### Bank statement import
+
+The Money page and (later) the bot run the existing Sure importer from `/opt/sure_import`, mounted read-only into the API container. Sure deduplicates on each row's reference, so importing the same statement twice is safe. Needs `ENABLE_BANK_IMPORT=1`, `SURE_IMPORT_PYTHON=/usr/local/bin/python` and `SURE_IMPORT_SCRIPT` in `.env`; the compose file points `SURE_API_URL` at Sure's container on its own network.
+
 ### Importing vidhealth history
 
 ```bash
