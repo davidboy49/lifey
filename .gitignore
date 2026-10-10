@@ -11,3 +11,5 @@ backups/
 *.egg-info/
 .pgdata/
 AGENTS.md
+
+.backup.env

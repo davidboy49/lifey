@@ -1,0 +1,6 @@
+[Unit]
+Description=Lifey encrypted database backup
+
+[Service]
+Type=oneshot
+ExecStart=/opt/lifey/deploy/backup.sh

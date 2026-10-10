@@ -1,0 +1,9 @@
+[Unit]
+Description=Lifey database backup, daily
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Phnom_Penh
+Persistent=true
+
+[Install]
+WantedBy=timers.target

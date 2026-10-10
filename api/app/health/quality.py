@@ -95,6 +95,14 @@ def parse_daily(raw):
                           "sleep_light": "lightSleepSeconds", "sleep_rem": "remSleepSeconds", "sleep_awake": "awakeSleepSeconds"}.items():
         read(metric, "sleep", "dailySleepDTO", field)
     read("sleep_score", "sleep", "dailySleepDTO", "sleepScores", "overall", "value")
+    # Sleep belongs to the wake-up date. Garmin labels the record with that date as
+    # calendarDate; if it disagrees with the day we asked for, never store it here.
+    sleep_dto = raw.get("sleep", {}).get("dailySleepDTO") if isinstance(raw.get("sleep"), dict) else None
+    sleep_day = sleep_dto.get("calendarDate") if isinstance(sleep_dto, dict) else None
+    if sleep_day and raw.get("date") and str(sleep_day)[:10] != str(raw["date"])[:10]:
+        for metric in ("sleep_duration", "sleep_deep", "sleep_light", "sleep_rem", "sleep_awake", "sleep_score"):
+            values[metric] = None
+            issues[metric] = f"Sleep record is for {str(sleep_day)[:10]}, not {str(raw['date'])[:10]}"
     for metric, field in {"resting_hr": "restingHeartRate", "min_hr": "minHeartRate", "max_hr": "maxHeartRate"}.items():
         if values[metric] is None:
             read(metric, "heart_rate", field)

@@ -82,3 +82,15 @@ def test_out_of_range_vendor_sentinels_are_unavailable():
     values, _, issues = q.parse_daily({"summary": {"averageStressLevel": -1, "averageSpo2": 101}})
     assert values["stress_avg"] is None and values["spo2_avg"] is None
     assert set(issues) == {"stress_avg", "spo2_avg"}
+
+
+def test_sleep_is_assigned_to_the_wake_up_date():
+    """Sleep ending on D belongs to D; a record Garmin dates differently is rejected, not misfiled."""
+    sleep = {"dailySleepDTO": {"calendarDate": "2026-09-21", "sleepTimeSeconds": 25000,
+                               "sleepScores": {"overall": {"value": 80}}}}
+    values, _, issues = q.parse_daily({"date": "2026-09-21", "sleep": sleep})
+    assert values["sleep_duration"] == 25000 and values["sleep_score"] == 80 and not issues
+
+    values, _, issues = q.parse_daily({"date": "2026-09-22", "sleep": sleep})
+    assert values["sleep_duration"] is None and values["sleep_score"] is None
+    assert "2026-09-21" in issues["sleep_duration"]
