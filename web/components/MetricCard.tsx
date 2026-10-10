@@ -19,7 +19,9 @@ export function MetricCard({ m, delay = 0 }: { m: Metric; delay?: number }) {
 
       {missing ? (
         <div className="hatch flex h-[84px] items-center rounded-xl border border-dashed border-ink-3/40 px-4 text-sm text-ink-2">
-          No reading in the last {m.series.length} days.
+          {m.series.some((v) => v !== null)
+            ? `No reading for the latest day. Recorded on ${m.coverage} days.`
+            : `No reading in the last ${m.series.length} days.`}
         </div>
       ) : (
         <>
@@ -37,6 +39,14 @@ export function MetricCard({ m, delay = 0 }: { m: Metric; delay?: number }) {
           </div>
           <Spark metric={m} color={tone.fg} />
         </>
+      )}
+
+      {m.source_status && ["stale", "fetch_failed", "parse_failed"].includes(m.source_status) && (
+        <p className="rounded-lg bg-watch-soft px-3 py-2 text-xs text-watch">
+          {m.source_status === "parse_failed"
+            ? "Garmin sent data in a shape Lifey couldn’t read. Showing the earlier value."
+            : "The latest fetch for this signal failed. Showing the earlier value."}
+        </p>
       )}
 
       <footer className="mt-auto flex items-center justify-between border-t border-line pt-3 font-mono text-[11px] text-ink-3">

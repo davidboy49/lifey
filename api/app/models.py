@@ -18,6 +18,7 @@ class Metric(BaseModel):
     delta_pct: float | None
     status: Status
     provenance: Provenance
+    source_status: str | None = None  # endpoint state: available, stale, fetch_failed, ...
     coverage: str  # "26/28": days with data in the window
     series: list[float | None]
 

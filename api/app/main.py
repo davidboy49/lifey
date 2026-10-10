@@ -4,8 +4,9 @@ import tempfile
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
-from . import money
+from . import db, money
 from .demo import today_payload
+from .health import read
 from .models import Today
 
 app = FastAPI(title="Lifey API", version="0.1.0")
@@ -19,7 +20,21 @@ def healthz() -> dict:
 
 @app.get("/api/today", response_model=Today)
 def today() -> Today:
+    """Real data when the database has any, otherwise the labelled demo."""
+    if db.configured():
+        with db.connect() as conn:
+            found = read.today_from_db(conn)
+        if found is not None:
+            return found
     return today_payload()
+
+
+@app.get("/api/health/sync")
+def health_sync() -> dict:
+    if not db.configured():
+        return {"last_run": None}
+    with db.connect() as conn:
+        return {"last_run": read.last_sync(conn)}
 
 
 @app.get("/api/money/status")

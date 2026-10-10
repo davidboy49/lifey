@@ -23,6 +23,25 @@ services:
       db:
         condition: service_healthy
 
+  # One-shot Garmin sync. Run it from cron, n8n or by hand:
+  #   docker compose run --rm sync            (rolling 3 days)
+  #   docker compose run --rm sync backfill 30
+  sync:
+    build: ./api
+    profiles: ["sync"]
+    env_file: .env
+    environment:
+      GARMIN_TOKEN_DIR: /data/garmin_tokens
+    volumes:
+      - garmin:/data
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    entrypoint: ["python", "-m", "app.health.sync"]
+    command: ["smart", "3"]
+
   web:
     build: ./web
     environment:
@@ -42,3 +61,4 @@ services:
 
 volumes:
   pgdata:
+  garmin:

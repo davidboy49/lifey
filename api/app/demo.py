@@ -28,7 +28,7 @@ def today_payload() -> Today:
         build_metric("sleep", "Sleep score", "pts", _series(2, 76, 5, 4, 72, gaps=(11,)), "score"),
         build_metric("rhr", "Resting heart rate", "bpm", _series(3, 52, 1.5, 1.1, 53, gaps=(3, 4)), "measured", higher_is_better=False),
         build_metric("steps", "Steps", "", _series(4, 9200, 1800, 1500, 7430), "measured"),
-        build_metric("spo2", "Overnight oxygen", "%", [None] * DAYS, "measured"),
+        build_metric("spo2", "Blood oxygen, daily average", "%", [None] * DAYS, "measured"),
     ]
     verdict, reasons = readiness(metrics)
     return Today(

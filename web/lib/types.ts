@@ -11,6 +11,7 @@ export interface Metric {
   delta_pct: number | null;
   status: Status;
   provenance: Provenance;
+  source_status: string | null;
   coverage: string;
   series: (number | null)[];
 }

@@ -23,7 +23,13 @@ def baseline(series: list[float | None]) -> tuple[float | None, float | None, in
     return fmean(prior), max(pstdev(prior), 1e-6), len(prior)
 
 
-def build_metric(key, label, unit, series, provenance, higher_is_better=True) -> Metric:
+def spread(baseline: float, sd: float | None) -> float:
+    """Spread used for z-scores. Floored so a perfectly flat history (sd 0)
+    neither divides by zero nor makes every tiny change look enormous."""
+    return max(sd or 0.0, abs(baseline) * 0.02, 1e-6)
+
+
+def build_metric(key, label, unit, series, provenance, higher_is_better=True, source_status=None) -> Metric:
     value = series[-1] if series else None
     mean, sd, _ = baseline(series)
     covered = sum(v is not None for v in series)
@@ -31,7 +37,7 @@ def build_metric(key, label, unit, series, provenance, higher_is_better=True) ->
     status = "unknown"
     if value is not None and mean:
         delta = round((value - mean) / mean * 100, 1)
-        z = (value - mean) / sd
+        z = (value - mean) / spread(mean, sd)
         z = z if higher_is_better else -z
         status = "good" if z >= -0.5 else "watch" if z >= -1.25 else "alert"
     return Metric(
@@ -41,6 +47,7 @@ def build_metric(key, label, unit, series, provenance, higher_is_better=True) ->
         baseline_sd=None if sd is None else round(sd, 1),
         delta_pct=delta, status=status,
         provenance="not_recorded" if value is None else provenance,
+        source_status=source_status,
         coverage=f"{covered}/{len(series)}", series=series,
     )
 
@@ -49,9 +56,9 @@ def readiness(metrics: list[Metric]) -> tuple[Readiness, list[Reason]]:
     used, zs = [], []
     for m in metrics:
         w = WEIGHTS.get(m.key)
-        if not w or m.value is None or m.baseline is None or not m.baseline_sd:
+        if not w or m.value is None or m.baseline is None:
             continue
-        z = (m.value - m.baseline) / m.baseline_sd
+        z = (m.value - m.baseline) / spread(m.baseline, m.baseline_sd)
         zs.append((w[0], z if w[1] else -z))
         used.append(m)
 
