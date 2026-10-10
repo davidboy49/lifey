@@ -1,9 +1,16 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.readiness import build_metric, readiness
 
-client = TestClient(app)
+client = TestClient(app, headers={"Origin": "http://localhost:3000"})
+
+
+@pytest.fixture(autouse=True)
+def _open(monkeypatch):
+    monkeypatch.setenv("AUTH_DISABLED", "1")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
 
 
 def test_today_is_labelled_demo_and_keeps_gaps():

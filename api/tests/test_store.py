@@ -130,7 +130,8 @@ def test_samples_outside_valid_range_are_rejected_by_the_database(pg):
         pg.execute("INSERT INTO health.spo2_samples(date, ts, value, source) VALUES (%s, now(), 0, 'SLEEP')", (DAY,))
 
 
-def test_today_endpoint_reads_real_data_and_keeps_gaps(pg):
+def test_today_endpoint_reads_real_data_and_keeps_gaps(pg, monkeypatch):
+    monkeypatch.setenv("AUTH_DISABLED", "1")
     from fastapi.testclient import TestClient
     from app.main import app
 

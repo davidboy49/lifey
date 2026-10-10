@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { ApiDown } from "@/components/ApiDown";
 import { Provenance, TONE } from "@/components/Provenance";
 import { Spark } from "@/components/Spark";
@@ -6,8 +7,10 @@ import { getToday } from "@/lib/api";
 export const dynamic = "force-dynamic";
 
 export default async function TrendsPage() {
-  const t = await getToday();
-  if (!t) return <ApiDown />;
+  const res = await getToday();
+  if (res.status === "unauthorized") redirect("/login");
+  if (res.status !== "ok") return <ApiDown />;
+  const t = res.data;
   const metrics = t.metrics.filter((m) => m.value !== null);
 
   return (

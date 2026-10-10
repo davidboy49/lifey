@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { ApiDown } from "@/components/ApiDown";
 import { Dial } from "@/components/Dial";
 import { MetricCard } from "@/components/MetricCard";
@@ -22,8 +23,10 @@ function ago(iso: string | null) {
 }
 
 export default async function TodayPage() {
-  const t = await getToday();
-  if (!t) return <ApiDown />;
+  const res = await getToday();
+  if (res.status === "unauthorized") redirect("/login");
+  if (res.status !== "ok") return <ApiDown />;
+  const t = res.data;
 
   const date = new Date(`${t.date}T12:00:00`);
   const weekday = date.toLocaleDateString("en-GB", { weekday: "long" });

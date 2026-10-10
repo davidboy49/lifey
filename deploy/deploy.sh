@@ -16,6 +16,8 @@ POSTGRES_PASSWORD=${pw}
 DATABASE_URL=postgresql://lifey:${pw}@db:5432/lifey
 HEALTH_TIMEZONE=Asia/Bangkok
 ENABLE_BANK_IMPORT=0
+APP_ORIGINS=https://lifey.fearlessonline.shop,http://localhost:8100
+AUTH_COOKIE_SECURE=1
 EOF
   echo "created .env (secrets generated, not printed)"
 fi

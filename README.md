@@ -34,6 +34,26 @@ cd web && npm install && npm run dev      # http://localhost:3000
 
 Or the full stack: copy `.env.example` to `.env`, then `docker compose up --build` and open http://localhost:8080.
 
+## Authentication
+
+Lifey has its own login; nothing in `/api` is readable without a session (a test enumerates the OpenAPI schema to keep it that way).
+
+- Argon2id password hashes, 12 character minimum, no public signup.
+- Random session token in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie. Only a SHA-256 of the token is stored. 14-day sliding expiry, 90-day absolute.
+- Lockout after 5 failed attempts per username (15 minutes); one generic error for unknown user and wrong password.
+- State-changing requests must carry an `Origin` from `APP_ORIGINS`.
+- Changing a password ends all other sessions.
+
+```bash
+python -m app.auth.cli create-user david        # hidden password prompt
+python -m app.auth.cli set-password david
+python -m app.auth.cli logout-everywhere david
+python -m app.auth.cli list
+```
+
+On the VPS: `docker compose -f compose.prod.yml exec api python -m app.auth.cli create-user david`.
+`AUTH_DISABLED=1` exists only for the no-database demo; never set it on a server.
+
 ## Garmin ingestion
 
 Ported from vidhealth with the same provenance rules (`api/app/health/`):

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "./ThemeToggle";
 
 const ITEMS = [
@@ -18,8 +18,21 @@ function Icon({ d }: { d: string }) {
   );
 }
 
+const SIGN_OUT_ICON = "M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l-5-5 5-5M5 12h11";
+
 export function Nav() {
   const path = usePathname();
+  const router = useRouter();
+
+  async function signOut() {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  }
+
   const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
 
   return (
@@ -43,6 +56,14 @@ export function Nav() {
             </Link>
           ))}
         </nav>
+        <button
+          type="button"
+          onClick={signOut}
+          className="mb-3 flex items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium text-ink-2 hover:bg-raised hover:text-ink"
+        >
+          <Icon d={SIGN_OUT_ICON} />
+          Sign out
+        </button>
         <ThemeToggle />
       </aside>
 
@@ -64,6 +85,10 @@ export function Nav() {
             {it.label}
           </Link>
         ))}
+        <button type="button" onClick={signOut} className="flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium text-ink-3">
+          <Icon d={SIGN_OUT_ICON} />
+          Sign out
+        </button>
       </nav>
     </>
   );

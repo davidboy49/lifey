@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist_Mono, Instrument_Sans } from "next/font/google";
-import { Nav } from "@/components/Nav";
 import "./globals.css";
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-display", axes: ["opsz"] });
@@ -10,6 +9,7 @@ const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 export const metadata: Metadata = {
   title: "Lifey",
   description: "Your health and money, in one calm place.",
+  robots: { index: false, follow: false },
 };
 
 export const viewport: Viewport = { viewportFit: "cover", width: "device-width", initialScale: 1 };
@@ -23,12 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
       </head>
-      <body>
-        <Nav />
-        <main className="px-4 pb-28 pt-6 sm:px-8 md:ml-[232px] md:px-10 md:pb-16 md:pt-10 xl:px-16">
-          <div className="mx-auto max-w-[1040px]">{children}</div>
-        </main>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
