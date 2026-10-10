@@ -53,5 +53,23 @@ def last_sync(conn: Connection) -> dict | None:
     ).fetchone()
     if not row:
         return None
-    return {"id": row[0], "started_at": row[1].isoformat(),
+    age = conn.execute("SELECT EXTRACT(EPOCH FROM NOW() - %s)", (row[1],)).fetchone()[0]
+    return {"id": row[0], "started_at": row[1].isoformat(), "age_seconds": float(age),
             "finished_at": row[2].isoformat() if row[2] else None, "status": row[3], "details": row[4]}
+
+
+SOURCE_LABELS = {
+    "hrv": "HRV", "sleep": "Sleep", "heart_rate": "Heart rate", "body_battery": "Body battery",
+    "stress": "Stress", "steps": "Steps", "summary": "Daily summary", "training_readiness": "Training readiness",
+    "pulse_ox": "Blood oxygen", "respiration": "Respiration", "activities": "Activities",
+}
+
+
+def source_states(conn: Connection) -> list[dict]:
+    """Per-endpoint status for the most recent day with data."""
+    rows = conn.execute(
+        """SELECT endpoint, status, fetched_at, attempted_at, retained FROM health.endpoint_state
+           WHERE date = (SELECT max(date) FROM health.daily_metrics) ORDER BY endpoint""").fetchall()
+    return [{"key": r[0], "label": SOURCE_LABELS.get(r[0], r[0]), "status": r[1],
+             "fetched_at": r[2].isoformat() if r[2] else None,
+             "attempted_at": r[3].isoformat() if r[3] else None, "retained": r[4]} for r in rows]

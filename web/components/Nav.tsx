@@ -6,6 +6,7 @@ import { ThemeToggle } from "./ThemeToggle";
 
 const ITEMS = [
   { href: "/", label: "Today", d: "M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6l1.4 1.4m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" },
+  { href: "/journal", label: "Journal", d: "M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6V3Zm0 0v18M10 8h5M10 12h5" },
   { href: "/trends", label: "Trends", d: "M3 17l5-6 4 3 8-9M3 21h18" },
   { href: "/money", label: "Money", d: "M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Zm0 0V6a2 2 0 0 1 2-2h10M16 14h.01" },
 ];

@@ -30,12 +30,16 @@ services:
       # Inside the Sure network its web container is reachable by name.
       # (The importer's own .env says 127.0.0.1:8099, which is the host.)
       SURE_API_URL: http://sure-web-1:3000
+      # The web "Sync now" button runs the Garmin sync in this process, so it
+      # needs the same login cache as the scheduled sync.
+      GARMIN_TOKEN_DIR: /data/garmin_tokens
     volumes:
       - /opt/sure_import:/opt/sure_import:ro
+      - garmin:/data
     networks: [default, sure]
     ports:
       - "127.0.0.1:8101:8000"
-    mem_limit: 256m
+    mem_limit: 384m
     depends_on:
       db:
         condition: service_healthy

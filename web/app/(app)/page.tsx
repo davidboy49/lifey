@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { ApiDown } from "@/components/ApiDown";
 import { Dial } from "@/components/Dial";
 import { MetricCard } from "@/components/MetricCard";
+import { SyncControl } from "@/components/SyncControl";
 import { getToday } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -12,15 +13,6 @@ const TONE: Record<string, string> = {
   "Ease off": "var(--watch)",
   Recover: "var(--alert)",
 };
-
-function ago(iso: string | null) {
-  if (!iso) return "never";
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const h = Math.round(mins / 60);
-  return h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`;
-}
 
 export default async function TodayPage() {
   const res = await getToday();
@@ -43,10 +35,7 @@ export default async function TodayPage() {
             {weekday}, <span className="text-ink-3">{rest}</span>
           </h1>
         </div>
-        <p className="flex items-center gap-2 rounded-full border border-line bg-raised px-3 py-1.5 font-mono text-xs text-ink-2">
-          <span className="size-1.5 rounded-full bg-good" aria-hidden />
-          Synced {ago(t.synced_at)}
-        </p>
+        <SyncControl syncedAt={t.synced_at} />
       </header>
 
       {t.source === "demo" && (

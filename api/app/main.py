@@ -2,15 +2,18 @@ import asyncio
 import logging
 import os
 import tempfile
+import threading
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from . import db, money
 from .auth import deps as auth_deps
 from .auth.routes import router as auth_router
 from .demo import today_payload
-from .health import read
+from .health import read, sync as garmin_sync
+from .journal.routes import router as journal_router
 from .models import Today
 
 app = FastAPI(title="Lifey API", version="0.1.0", docs_url=None, redoc_url=None, openapi_url=None)
@@ -32,6 +35,7 @@ async def require_same_origin(request: Request, call_next):
 
 
 app.include_router(auth_router)
+app.include_router(journal_router)
 protected = [Depends(auth_deps.current_user)]
 
 
@@ -51,12 +55,46 @@ def today() -> Today:
     return today_payload()
 
 
+SYNC_STALE_AFTER_S = 15 * 60  # a "running" record older than this is a crashed run, not a live one
+
+
+class SyncRequest(BaseModel):
+    days: int = Field(default=3, ge=1, le=7)
+
+
 @app.get("/api/health/sync", dependencies=protected)
 def health_sync() -> dict:
+    """Last run, whether one is in progress, and the state of each Garmin source today."""
     if not db.configured():
-        return {"last_run": None}
+        return {"last_run": None, "running": False, "sources": []}
     with db.connect() as conn:
-        return {"last_run": read.last_sync(conn)}
+        last = read.last_sync(conn)
+        running = bool(last and last["status"] == "running" and last["age_seconds"] < SYNC_STALE_AFTER_S)
+        return {"last_run": last, "running": running, "sources": read.source_states(conn)}
+
+
+@app.post("/api/health/sync", status_code=202, dependencies=protected)
+def start_health_sync(body: SyncRequest = SyncRequest()) -> dict:
+    """Start a sync in the background and return at once; poll GET for the outcome."""
+    if not (os.environ.get("GARMIN_EMAIL") and os.environ.get("GARMIN_PASSWORD")):
+        raise HTTPException(503, "Garmin credentials are not configured on this server.")
+    with db.connect() as conn:
+        free = conn.execute("SELECT pg_try_advisory_lock(%s)", (garmin_sync.SYNC_LOCK_KEY,)).fetchone()[0]
+        if free:
+            conn.execute("SELECT pg_advisory_unlock(%s)", (garmin_sync.SYNC_LOCK_KEY,))
+    if not free:
+        raise HTTPException(409, "A sync is already running.")
+
+    def run() -> None:
+        try:
+            from .bot import syncer  # pulls in pandas for alert dispatch
+
+            syncer.smart_sync(body.days)
+        except Exception:  # the run is recorded as failed by run_sync; keep details out of the response
+            logging.getLogger("lifey.sync").exception("manual sync failed")
+
+    threading.Thread(target=run, name="manual-sync", daemon=True).start()
+    return {"started": True, "days": body.days}
 
 
 @app.get("/api/money/status", dependencies=protected)

@@ -253,3 +253,10 @@ def save_action_plan(period_start: str, period_end: str, model: str, headline: s
              json.dumps(evidence, default=str))).fetchone()
         conn.commit()
         return row[0]
+
+
+def get_activity_logs_between(start: str, end: str) -> list[dict]:
+    """Every entry dated start..end inclusive (ISO dates), newest first."""
+    return _stamp(_rows(
+        f"SELECT {_LOG_COLUMNS} FROM journal.activity_logs WHERE date >= %(a)s AND date <= %(b)s "
+        "ORDER BY date DESC, ts DESC, id DESC", {"a": start, "b": end}))
