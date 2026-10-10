@@ -17,6 +17,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
+# The standalone server does not include public/ (logo, install icons) unless it is copied.
+COPY --from=build /app/public ./public
 RUN useradd -r lifey && chown -R lifey /app
 USER lifey
 EXPOSE 3000

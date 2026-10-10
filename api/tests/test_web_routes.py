@@ -49,3 +49,9 @@ def test_every_public_asset_the_app_references_exists_and_is_not_ignored():
     assert ignored.strip() == "", f"ignored by git: {ignored.strip()}"
     for icon in ("icon.png", "apple-icon.png", "favicon.ico"):
         assert (WEB / "app" / icon).exists(), f"web/app/{icon} missing"
+
+
+def test_the_web_image_ships_the_public_folder():
+    """Next's standalone output leaves public/ out; without this COPY the logo is a 404 in production."""
+    dockerfile = (WEB / "Dockerfile").read_text(encoding="utf-8")
+    assert "/app/public" in dockerfile and (WEB / "public").is_dir()
