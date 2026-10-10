@@ -41,6 +41,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
   if (res.status !== "ok") return <ApiDown />;
   const j = res.data;
   const sync = await apiGet<{ last_run: { finished_at: string | null } | null }>("/api/health/sync");
+  const catalog = await apiGet<{ label: string; unit: string }[]>("/api/habits/catalog");
   const syncedAt = sync.status === "ok" ? sync.data.last_run?.finished_at ?? null : null;
 
   const nowTime = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Phnom_Penh" });
@@ -125,7 +126,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
         </div>
 
         <div className="order-1 lg:order-2">
-          <Composer today={j.today} nowTime={nowTime} />
+          <Composer today={j.today} nowTime={nowTime} habits={catalog.status === "ok" ? catalog.data : undefined} />
         </div>
       </div>
     </div>

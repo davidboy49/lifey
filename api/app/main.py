@@ -13,6 +13,9 @@ from .auth import deps as auth_deps
 from .auth.routes import router as auth_router
 from .demo import today_payload
 from .health import read, sync as garmin_sync
+from .data_routes import router as data_router
+from .journal.habit_routes import router as habits_router
+from .journal.review_routes import router as review_router
 from .journal.routes import router as journal_router
 from .models import Today
 
@@ -36,6 +39,9 @@ async def require_same_origin(request: Request, call_next):
 
 app.include_router(auth_router)
 app.include_router(journal_router)
+app.include_router(habits_router)
+app.include_router(review_router)
+app.include_router(data_router)
 protected = [Depends(auth_deps.current_user)]
 
 

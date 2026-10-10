@@ -732,6 +732,24 @@ def run_statement_import(path: str) -> dict:
     return money.run_statement_import(path)
 
 
+WEEKLY_REVIEW_DAY = 0  # python-telegram-bot numbers days 0-6 as Sunday-Saturday
+
+
+async def weekly_review_nudge(context: ContextTypes.DEFAULT_TYPE):
+    """Sunday evening: point to the weekly review page. Sends nothing without a configured address."""
+    base = os.environ.get("WEB_URL", "").strip().rstrip("/")
+    markup = None
+    if base:
+        markup = InlineKeyboardMarkup([[InlineKeyboardButton("Open the review", url=f"{base}/review")]])
+    await context.bot.send_message(
+        chat_id=AUTHORIZED_CHAT_ID,
+        text=("📝 <b>Your weekly review is ready.</b>\n"
+              "It takes about five minutes: the week in numbers, your own notes, and one change for next week."
+              + ("" if base else "\n\n<i>Set WEB_URL to get a link here.</i>")),
+        reply_markup=markup, parse_mode="HTML",
+    )
+
+
 async def xlsx_statement_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Import an ABA .xlsx bank statement into Sure (auto bank-statement import)."""
     if not await check_auth(update, context):
@@ -1213,6 +1231,15 @@ async def post_init(app: Application):
             logger.warning(f"{env}={value!r} is not HH:MM; that broadcast is disabled.")
             continue
         app.job_queue.run_daily(job, at, name=job.__name__)
+
+    review_time = os.environ.get("WEEKLY_REVIEW_TIME", "19:00").strip()
+    if review_time.lower() != "off":
+        try:
+            hour, minute = (int(x) for x in review_time.split(":"))
+            app.job_queue.run_daily(weekly_review_nudge, dtime(hour, minute, tzinfo=quality.user_timezone()),
+                                    days=(WEEKLY_REVIEW_DAY,), name="weekly_review_nudge")
+        except ValueError:
+            logger.warning(f"WEEKLY_REVIEW_TIME={review_time!r} is not HH:MM; the weekly nudge is disabled.")
 
 # ---------- MAIN RUNNING LOOP ----------
 

@@ -54,6 +54,14 @@ python -m app.auth.cli list
 On the VPS: `docker compose -f compose.prod.yml exec api python -m app.auth.cli create-user david`.
 `AUTH_DISABLED=1` exists only for the no-database demo; never set it on a server.
 
+## Journal, habits and the weekly review
+
+- **Journal** (`/journal`): a day-by-day timeline of habits, quit-tracker entries, check-ins, notes and training. Entries can be added for any day up to 400 days back, with the time they happened. An entry added on a later day is marked *recalled*. A day with nothing logged is unknown, never clean.
+- **Habits** (`/habits`): a 2/5/12 week grid with three distinct cell states (logged, not logged, unknown), the quit card (days free in the last 30, best run; a slip is one day, not a reset to zero), mood and energy rows, and your own habits with an optional "if / then" cue.
+- **Review** (`/review`): the week in numbers with the days behind each figure, your own notes, habit patterns only once there are 8 nights in each group, then a short reflection and one if-then change. The bot sends a Sunday 19:00 nudge (`WEEKLY_REVIEW_TIME`, `WEB_URL`).
+- **Data** (`/data`): daily metrics, activities, journal, alerts and sync runs as tables with CSV export (formula-safe). Gaps are blank, never zero.
+- **Sync now**: a button on Today and Journal; one sync at a time, with a per-source result.
+
 ## Garmin ingestion
 
 Ported from vidhealth with the same provenance rules (`api/app/health/`):

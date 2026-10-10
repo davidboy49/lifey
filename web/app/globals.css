@@ -192,3 +192,22 @@ body {
 .kind-note { --c: var(--k-note); --b: var(--k-note-bg); }
 .kind-badge { background: var(--b); color: var(--c); }
 .kind-dot { background: var(--c); }
+
+/* Habit grid cells: one square per day. Unknown is hatched, never a flat "none". */
+.cell { aspect-ratio: 1; border-radius: 4px; background: var(--k-note-bg); min-width: 0; }
+.cell-unknown {
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--ink-3) 55%, transparent);
+}
+.cell-h1 { background: color-mix(in srgb, var(--k-habit) 35%, var(--k-habit-bg)); }
+.cell-h2 { background: color-mix(in srgb, var(--k-habit) 65%, var(--k-habit-bg)); }
+.cell-h3 { background: var(--k-habit); }
+.cell-clean { background: var(--k-quit); }
+.cell-slip { background: var(--k-habit); }
+.cell-unchecked { background: var(--k-quit-bg); }
+.cell-s1 { background: color-mix(in srgb, var(--k-checkin) 15%, var(--k-checkin-bg)); }
+.cell-s2 { background: color-mix(in srgb, var(--k-checkin) 35%, var(--k-checkin-bg)); }
+.cell-s3 { background: color-mix(in srgb, var(--k-checkin) 55%, var(--k-checkin-bg)); }
+.cell-s4 { background: color-mix(in srgb, var(--k-checkin) 78%, var(--k-checkin-bg)); }
+.cell-s5 { background: var(--k-checkin); }
+.cell-urge { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--raised) 85%, transparent); }

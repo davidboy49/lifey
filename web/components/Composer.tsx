@@ -12,7 +12,10 @@ const KINDS: { key: Kind; label: string }[] = [
   { key: "checkin", label: "Check-in" },
   { key: "note", label: "Note" },
 ];
-const HABITS = ["Alcohol", "Late caffeine", "Late meal", "Late screen", "Nicotine", "High stress"];
+const DEFAULT_HABITS = [
+  { label: "Alcohol", unit: "drinks" }, { label: "Late caffeine", unit: "times" }, { label: "Late meal", unit: "times" },
+  { label: "Late screen", unit: "times" }, { label: "Nicotine", unit: "times" }, { label: "High stress", unit: "times" },
+];
 const QUIT: { key: "slip" | "urge" | "clean"; label: string; hint: string }[] = [
   { key: "urge", label: "Urge resisted", hint: "A win. The streak is untouched." },
   { key: "clean", label: "Clean day", hint: "The nightly check-in." },
@@ -57,11 +60,13 @@ function Scale({ value, onChange, label }: { value: number | null; onChange: (v:
   );
 }
 
-export function Composer({ today, nowTime }: { today: string; nowTime: string }) {
+export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
+  today: string; nowTime: string; habits?: { label: string; unit: string }[];
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
   const [kind, setKind] = useState<Kind>("habit");
-  const [habit, setHabit] = useState("Alcohol");
+  const [habit, setHabit] = useState(habits[0]?.label ?? "Alcohol");
   const [custom, setCustom] = useState("");
   const [amount, setAmount] = useState("1");
   const [action, setAction] = useState<"slip" | "urge" | "clean">("urge");
@@ -82,7 +87,7 @@ export function Composer({ today, nowTime }: { today: string; nowTime: string })
   const day = ago === "pick" ? picked : addDays(today, -ago);
   const isHabit = kind === "habit";
   const habitName = habit === "Custom" ? custom.trim() : habit;
-  const unit = habit === "Alcohol" ? "drinks" : "times";
+  const unit = habits.find((h) => h.label === habit)?.unit ?? "times";
   const recalled = day < today;
   const hint = useMemo(
     () =>
@@ -166,7 +171,7 @@ export function Composer({ today, nowTime }: { today: string; nowTime: string })
           {kind === "habit" && (
             <>
               <div className="flex flex-wrap gap-2" role="group" aria-label="Habit">
-                {[...HABITS, "Custom"].map((h) => (
+                {[...habits.map((x) => x.label), "Custom"].map((h) => (
                   <button
                     key={h}
                     type="button"

@@ -147,3 +147,23 @@ def test_week_and_action_plan_are_generated_from_current_data(pg):
     assert reports.ensure_weekly_report()["id"] != report["id"]   # data moved on, so the recap did
     plan = reports.ensure_action_plan()
     assert plan["period_end"] == "2026-10-10" and plan["headline"].startswith("Recorded observations")
+
+
+def test_weekly_review_nudge_links_to_the_page_and_runs_on_sundays(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from app.bot import bot
+
+    assert bot.WEEKLY_REVIEW_DAY == 0                       # python-telegram-bot: 0 is Sunday
+    monkeypatch.setattr(bot, "AUTHORIZED_CHAT_ID", "123")
+    monkeypatch.setenv("WEB_URL", "https://lifey.example/")
+    send = AsyncMock()
+    asyncio.run(bot.weekly_review_nudge(SimpleNamespace(bot=SimpleNamespace(send_message=send))))
+    kwargs = send.call_args.kwargs
+    button = kwargs["reply_markup"].inline_keyboard[0][0]
+    assert button.url == "https://lifey.example/review" and kwargs["chat_id"] == "123"
+
+    monkeypatch.delenv("WEB_URL")
+    asyncio.run(bot.weekly_review_nudge(SimpleNamespace(bot=SimpleNamespace(send_message=send))))
+    assert send.call_args.kwargs["reply_markup"] is None    # no address: still tells you, without a dead link

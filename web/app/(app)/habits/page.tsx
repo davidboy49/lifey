@@ -1,0 +1,85 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ApiDown } from "@/components/ApiDown";
+import { HabitGrid, Legend, WellbeingGrid } from "@/components/HabitGrid";
+import { HabitManager } from "@/components/HabitManager";
+import { QuitCard } from "@/components/QuitCard";
+import { apiGet } from "@/lib/api";
+import type { HabitsResponse } from "@/lib/habits";
+import { shortDay } from "@/lib/journal";
+
+export const dynamic = "force-dynamic";
+
+const RANGES = [2, 5, 12];
+
+export default async function HabitsPage({ searchParams }: { searchParams: Promise<{ weeks?: string }> }) {
+  const sp = await searchParams;
+  const weeks = RANGES.includes(Number(sp.weeks)) ? Number(sp.weeks) : 5;
+  const res = await apiGet<HabitsResponse>(`/api/habits?weeks=${weeks}`);
+  if (res.status === "unauthorized") redirect("/login");
+  if (res.status !== "ok") return <ApiDown />;
+  const d = res.data;
+  const shown = d.habits.filter((h) => h.builtin || h.days > 0);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow">Habits</p>
+          <h1 className="font-display text-[34px] font-semibold leading-tight tracking-tight sm:text-[44px]">
+            {shortDay(d.days[0])} <span className="text-ink-3">to {shortDay(d.today)}</span>
+          </h1>
+        </div>
+        <nav aria-label="Range" className="flex gap-1 rounded-xl border border-line bg-raised p-1">
+          {RANGES.map((w) => (
+            <Link
+              key={w}
+              href={w === 5 ? "/habits" : `/habits?weeks=${w}`}
+              aria-current={weeks === w ? "true" : undefined}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium ${weeks === w ? "bg-accent-soft text-accent" : "text-ink-2 hover:text-ink"}`}
+            >
+              {w} weeks
+            </Link>
+          ))}
+        </nav>
+      </header>
+
+      <QuitCard card={d.quit.card} strip={d.quit.strip} />
+
+      <section className="card kind-habit grid gap-4 p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-xl font-semibold">Sleep disruptors</h2>
+          <Legend
+            items={[
+              { cls: "cell", text: "Not logged" },
+              { cls: "cell cell-h1", text: "Some" },
+              { cls: "cell cell-h3", text: "More" },
+              { cls: "cell cell-unknown", text: "Nothing logged that day" },
+            ]}
+          />
+        </div>
+        <HabitGrid days={d.days} rows={shown} />
+        <p className="rounded-xl bg-panel px-3.5 py-2.5 text-sm text-ink-2">
+          Dashed days had no journal entries at all, so they are unknown rather than clean.
+        </p>
+      </section>
+
+      <section className="card kind-checkin grid gap-4 p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-xl font-semibold">Mood and energy</h2>
+          <Legend
+            items={[
+              { cls: "cell cell-s1", text: "1" },
+              { cls: "cell cell-s3", text: "3" },
+              { cls: "cell cell-s5", text: "5" },
+              { cls: "cell cell-unknown", text: "Nothing logged" },
+            ]}
+          />
+        </div>
+        <WellbeingGrid days={d.days} rows={d.wellbeing} />
+      </section>
+
+      <HabitManager habits={d.catalog} />
+    </div>
+  );
+}

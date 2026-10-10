@@ -18,6 +18,7 @@ HEALTH_TIMEZONE=Asia/Phnom_Penh
 ENABLE_BANK_IMPORT=0
 APP_ORIGINS=https://lifey.fearlessonline.shop,http://localhost:8100
 AUTH_COOKIE_SECURE=1
+WEB_URL=https://lifey.fearlessonline.shop
 EOF
   echo "created .env (secrets generated, not printed)"
 fi
@@ -29,5 +30,9 @@ docker build --memory=1g --memory-swap=1800m \
   --build-arg API_URL=http://api:8000 -t lifey-web:latest web
 
 docker compose -f compose.prod.yml up -d
+# The bot lives behind a profile, so `up -d` skips it: recreate it when it is already running.
+if docker ps --format '{{.Names}}' | grep -q '^lifey-bot-1$'; then
+  docker compose -f compose.prod.yml --profile bot up -d bot
+fi
 docker image prune -f > /dev/null
 docker compose -f compose.prod.yml ps
