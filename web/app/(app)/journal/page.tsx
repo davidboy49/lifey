@@ -63,7 +63,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
         <div className="card p-4"><p className="eyebrow">Mood</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.mood ?? "·"}<span className="text-sm font-normal text-ink-3">{j.summary.mood !== null ? " / 5" : ""}</span></p></div>
         <div className="card p-4"><p className="eyebrow">Energy</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.energy ?? "·"}<span className="text-sm font-normal text-ink-3">{j.summary.energy !== null ? " / 5" : ""}</span></p></div>
         <div className="card p-4"><p className="eyebrow">Habits today</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.habits_today.length}</p><p className="truncate text-xs text-ink-3">{j.summary.habits_today.join(" · ") || "None logged"}</p></div>
-        <div className="card p-4"><p className="eyebrow">Days free</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.days_free ?? "·"}</p><p className="text-xs text-ink-3">{j.summary.best_run !== null ? `best ${j.summary.best_run}` : "Not tracking yet"}</p></div>
+        <div className="card p-4"><p className="eyebrow">Free, last 30</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.free_days_30 ?? "·"}<span className="text-sm font-normal text-ink-3">{j.summary.tracked_days_30 !== null ? ` / ${j.summary.tracked_days_30}` : ""}</span></p><p className="text-xs text-ink-3">{j.summary.best_run !== null ? `best run ${j.summary.best_run}` : "Not tracking yet"}</p></div>
       </section>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">

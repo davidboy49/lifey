@@ -12,6 +12,7 @@ from ..auth.deps import current_user
 from ..bot import quit_tracker, store
 from ..health import quality
 from . import entries
+from . import habits as habit_views
 
 router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(current_user)])
 
@@ -65,6 +66,11 @@ def timeline(days: int = Query(7, ge=1, le=90), kind: str = Query("all")) -> dic
     habits = [l for l in today_logs if entries.kind(l) == "habit"]
     quit_summary = quit_tracker.summarize(store.get_quit_logs(), today)
     tracking = quit_summary.get("tracking_start") is not None
+    last30 = [today - timedelta(days=i) for i in range(29, -1, -1)]
+    card = habit_views.quit_card(
+        quit_summary,
+        habit_views.quit_strip(store.get_activity_logs_between(last30[0].isoformat(), today.isoformat()), last30),
+        today)
     return {
         "today": today.isoformat(), "start": start.isoformat(), "days": days, "kind": kind,
         "summary": {
@@ -74,6 +80,9 @@ def timeline(days: int = Query(7, ge=1, le=90), kind: str = Query("all")) -> dic
             "notes_today": sum(1 for l in today_logs if entries.kind(l) == "note"),
             "days_free": quit_summary["current_streak"] if tracking else None,
             "best_run": quit_summary["best_streak"] if tracking else None,
+            # The headline number: a slip is one day, not a reset to zero.
+            "free_days_30": card["free_days_30"] if card else None,
+            "tracked_days_30": card["tracked_days_30"] if card else None,
         },
         "groups": groups,
         "count": sum(len(g["entries"]) for g in groups if not g["empty"]),

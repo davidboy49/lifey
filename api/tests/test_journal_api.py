@@ -96,6 +96,8 @@ def test_quit_actions_feed_the_streak(client):
     titles = [e["title"] for e in all_entries(body)]
     assert titles == ["Slip", "Urge resisted"]
     assert body["summary"]["days_free"] == 2
+    # a slip is one day inside the last 30, so the headline never collapses to zero
+    assert body["summary"]["free_days_30"] == body["summary"]["tracked_days_30"] - 1
 
 
 # ---------- reading ----------

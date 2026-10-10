@@ -30,6 +30,8 @@ export interface JournalResponse {
     notes_today: number;
     days_free: number | null;
     best_run: number | null;
+    free_days_30: number | null;
+    tracked_days_30: number | null;
   };
   groups: JournalGroup[];
 }
