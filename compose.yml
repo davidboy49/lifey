@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: lifey
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: lifey
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifey"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build: ./api
+    env_file: .env
+    environment:
+      ENABLE_BANK_IMPORT: ${ENABLE_BANK_IMPORT:-0}
+    volumes:
+      - ${SURE_IMPORT_DIR:-./.none}:/opt/sure_import:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    environment:
+      API_URL: http://api:8000
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "8080:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - web
+      - api
+
+volumes:
+  pgdata:

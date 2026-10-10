@@ -1,0 +1,155 @@
+@import "tailwindcss";
+
+/*
+  Lifey design tokens.
+  Concept: a quiet instrument panel. Green-grey mist neutrals, one ultramarine
+  accent for interaction, and semantic colours reserved for state. Every figure
+  carries its provenance; gaps are drawn as gaps (hatched), never as zero.
+*/
+:root {
+  --ground: #edf1ee;
+  --panel: #f6f8f6;
+  --raised: #ffffff;
+  --ink: #101915;
+  --ink-2: #4b5a53;
+  --ink-3: #74837b;
+  --line: #d5ddd8;
+  --accent: #3447d8;
+  --accent-soft: #e2e6fb;
+  --good: #1c7f53;
+  --good-soft: #d9efe4;
+  --watch: #94610f;
+  --watch-soft: #f6e8c9;
+  --alert: #b3342a;
+  --alert-soft: #f7dcd8;
+  --shadow: 0 1px 0 rgb(16 25 21 / 0.04), 0 8px 24px -12px rgb(16 25 21 / 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0a0f0d;
+    --panel: #101713;
+    --raised: #161f1a;
+    --ink: #e9f0eb;
+    --ink-2: #a7b5ad;
+    --ink-3: #74837b;
+    --line: #243029;
+    --accent: #9aa6ff;
+    --accent-soft: #1c2250;
+    --good: #4cc38a;
+    --good-soft: #12301f;
+    --watch: #e3b04b;
+    --watch-soft: #33270c;
+    --alert: #f2796b;
+    --alert-soft: #3a1612;
+    --shadow: 0 1px 0 rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #0a0f0d;
+  --panel: #101713;
+  --raised: #161f1a;
+  --ink: #e9f0eb;
+  --ink-2: #a7b5ad;
+  --ink-3: #74837b;
+  --line: #243029;
+  --accent: #9aa6ff;
+  --accent-soft: #1c2250;
+  --good: #4cc38a;
+  --good-soft: #12301f;
+  --watch: #e3b04b;
+  --watch-soft: #33270c;
+  --alert: #f2796b;
+  --alert-soft: #3a1612;
+  --shadow: 0 1px 0 rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-watch: var(--watch);
+  --color-watch-soft: var(--watch-soft);
+  --color-alert: var(--alert);
+  --color-alert-soft: var(--alert-soft);
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+html {
+  background: var(--ground);
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* A missing reading: diagonal hatching, never a flat zero. */
+.hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 6px,
+    color-mix(in srgb, var(--ink-3) 22%, transparent) 6px 7px
+  );
+}
+
+.card {
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise {
+    animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .dial-arc {
+    animation: sweep 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes sweep {
+  from {
+    stroke-dashoffset: var(--len);
+  }
+}
