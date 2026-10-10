@@ -57,14 +57,17 @@ def _load_previous(conn: Connection, day: date) -> dict:
     return previous
 
 
-def save_day(conn: Connection, date_str: str, incoming: dict) -> dict:
-    """Merge a fetched day into the store. Returns the merged source payloads."""
+def save_day(conn: Connection, date_str: str, incoming: dict, *, fetched_at: str | None = None) -> dict:
+    """Merge a fetched day into the store. Returns the merged source payloads.
+
+    `fetched_at` is only for history imports: it records when the data was
+    really received instead of stamping it with the import time."""
     day = date.fromisoformat(date_str)
     incoming = {**incoming, "date": date_str}
     with conn.transaction():
         conn.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ("health:" + date_str,))
         previous = _load_previous(conn, day)
-        merged = quality.merge_sources(previous, incoming)
+        merged = quality.merge_sources(previous, incoming, fetched_at)
 
         # Archive raw evidence first: nothing received is ever overwritten.
         for source in quality.SOURCES:
@@ -91,23 +94,24 @@ def save_day(conn: Connection, date_str: str, incoming: dict) -> dict:
                  _ts(state.get("fetched_at")), _ts(state.get("attempted_at")),
                  state.get("payload_hash"), bool(state.get("retained"))))
 
-        _save_daily(conn, day, merged)
+        _save_daily(conn, day, merged, synced_at=_ts(fetched_at))
         _save_oxygen(conn, day, merged)
         _save_activities(conn, day, merged)
     return merged
 
 
-def _save_daily(conn: Connection, day: date, merged: dict) -> None:
+def _save_daily(conn: Connection, day: date, merged: dict, synced_at=None) -> None:
     values, provenance, issues = quality.parse_daily(merged)
     columns = list(values)
     params = [_coerce(c, values[c]) for c in columns]
     assignments = ", ".join(f"{c}=excluded.{c}" for c in columns)
     conn.execute(
         f"""INSERT INTO health.daily_metrics (date, {', '.join(columns)}, metric_sources, metric_issues, synced_at)
-            VALUES (%s, {', '.join(['%s'] * len(columns))}, %s, %s, NOW())
+            VALUES (%s, {', '.join(['%s'] * len(columns))}, %s, %s, COALESCE(%s, NOW()))
             ON CONFLICT (date) DO UPDATE SET {assignments},
-              metric_sources=excluded.metric_sources, metric_issues=excluded.metric_issues, synced_at=NOW()""",
-        [day, *params, Jsonb(provenance), Jsonb(issues)])
+              metric_sources=excluded.metric_sources, metric_issues=excluded.metric_issues,
+              synced_at=excluded.synced_at""",
+        [day, *params, Jsonb(provenance), Jsonb(issues), synced_at])
 
 
 def _save_oxygen(conn: Connection, day: date, merged: dict) -> None:

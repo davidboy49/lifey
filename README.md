@@ -54,7 +54,17 @@ python -m app.health.sync backfill 30 --force
 
 Exit status is non-zero for partial or failed runs. `GET /api/health/sync` returns the last run.
 
-Not ported yet: desaturation events and hourly oxygen aggregates (exploratory analytics), the anomaly alerts, and importing vidhealth history. History can be rebuilt from vidhealth's `source_payloads` / `data/revisions` once you have a dump.
+### Importing vidhealth history
+
+```bash
+pip install -e ".[import]"
+python -m app.health.import_vidhealth path/to/vidhealth.dump --dry-run
+python -m app.health.import_vidhealth path/to/vidhealth.dump
+```
+
+Takes a `pg_dump -Fc` of the vidhealth database. Raw payloads are replayed through the same merge and parse rules as a live sync, with their original receipt times; days that only have a stored merged payload are stamped with that row's own sync time, never "now". vidhealth's derived oxygen tables are ignored, so synthetic `MODEL_EPOCH` rows never enter Lifey, and genuine samples are re-derived from the raw payloads. Safe to re-run. Journal, training and body-composition logs are not imported yet; ENT and quit tracking are dropped.
+
+Not ported yet: desaturation events and hourly oxygen aggregates (exploratory analytics) and anomaly alerts.
 
 ## Status
 
