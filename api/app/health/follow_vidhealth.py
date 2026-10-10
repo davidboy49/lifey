@@ -25,6 +25,7 @@ import psycopg
 
 from .. import db
 from . import quality
+from . import journal_import
 from .import_vidhealth import _iso, _json, build_history, import_history
 
 
@@ -56,8 +57,10 @@ def main(argv: list[str] | None = None) -> int:
     with psycopg.connect(old_url, connect_timeout=15) as old:
         old.read_only = True  # the server itself refuses any write on this session
         payload_rows, daily_rows = read_old(old, args.days)
+        journal = journal_import.read_live(old)
         old.rollback()
     history = build_history(payload_rows, daily_rows)
+    history.journal = journal
     with db.connect() as conn:
         result = import_history(conn, history)
     result.pop("skipped_no_payload", None)

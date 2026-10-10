@@ -40,6 +40,42 @@ services:
       db:
         condition: service_healthy
 
+  # --- started explicitly by deploy/cutover.sh (profiles keep them out of `up -d`) ---
+
+  # The Telegram bot. Only one process may poll a token, so this must never run
+  # alongside the old telegram-bot.service.
+  bot:
+    image: lifey-api:latest
+    profiles: ["bot"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SURE_API_URL: http://sure-web-1:3000
+    command: ["python", "-m", "app.bot"]
+    volumes:
+      - /opt/sure_import:/opt/sure_import:ro
+    networks: [default, sure]
+    mem_limit: 384m
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # One-shot Garmin sync, run by lifey-sync.timer:  compose run --rm sync smart 3
+  sync:
+    image: lifey-api:latest
+    profiles: ["sync"]
+    env_file: .env
+    environment:
+      GARMIN_TOKEN_DIR: /data/garmin_tokens
+    entrypoint: ["python", "-m", "app.health.sync"]
+    command: ["smart", "3"]
+    volumes:
+      - garmin:/data
+    mem_limit: 384m
+    depends_on:
+      db:
+        condition: service_healthy
+
   web:
     image: lifey-web:latest
     restart: unless-stopped
@@ -57,4 +93,5 @@ networks:
     external: true
 
 volumes:
+  garmin:
   pgdata:

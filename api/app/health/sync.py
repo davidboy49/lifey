@@ -99,7 +99,7 @@ def _finish(conn: Connection, run_id: int, status: str, details: dict) -> None:
 
 
 def run_sync(conn: Connection, dates: list[str], *, api=None, force: bool = True,
-             pause: float = 1.0) -> dict:
+             pause: float = 1.0, after_day=None) -> dict:
     """Sync the given ISO dates. `api` is injectable so tests need no Garmin account."""
     with sync_job(conn) as run_id:
         synced, failed, skipped, warnings = [], [], [], {}
@@ -123,6 +123,11 @@ def run_sync(conn: Connection, dates: list[str], *, api=None, force: bool = True
                     store.save_day(conn, ds, data)
                     conn.commit()
                     synced.append(ds)
+                    if after_day is not None:
+                        try:
+                            after_day(ds)
+                        except Exception:  # noqa: BLE001 - alerts must never fail a sync
+                            warnings.setdefault(ds, {})["alerts"] = "Alert refresh failed"
                 except Exception:  # noqa: BLE001
                     conn.rollback()
                     failed.append(ds)
@@ -166,8 +171,13 @@ def main(argv: list[str] | None = None) -> int:
             days, force = args.days or 3, True
             if not 1 <= days <= 366:
                 raise ValueError("days must be between 1 and 366")
+        try:
+            from ..bot import anomaly  # optional: needs the bot extras (pandas)
+            after_day = anomaly.dispatch_alerts_if_needed
+        except ImportError:
+            after_day = None
         with db.connect() as conn:
-            result = run_sync(conn, window(days), force=force)
+            result = run_sync(conn, window(days), force=force, after_day=after_day)
         print(json.dumps(result))
         return 0 if result["status"] == "success" else 1
     except Exception:  # noqa: BLE001

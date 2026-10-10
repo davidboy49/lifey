@@ -39,6 +39,7 @@ class History:
     from_payloads: set[str] = field(default_factory=set)
     from_legacy: set[str] = field(default_factory=set)
     skipped: dict[str, str] = field(default_factory=dict)
+    journal: object | None = None  # journal_import.Journal, when available
 
 
 def _columns(entry) -> list[str]:
@@ -111,6 +112,8 @@ def read_dump(path: str) -> History:
         rec = dict(zip(dm_cols, row))
         daily_rows.append((rec.get("date"), rec.get("raw_json"), rec.get("synced_at")))
     history = build_history(payload_rows, daily_rows)
+    from . import journal_import
+    history.journal = journal_import.read_dump(dump)
     return history
 
 
@@ -132,7 +135,17 @@ def import_history(conn: Connection, history: History, *, dry_run: bool = False)
             conn.rollback()
             failed += 1
             errors[day] = type(exc).__name__
-    return {"dry_run": False, "days_imported": imported, "days_failed": failed,
+    journal_counts = None
+    if history.journal is not None:
+        from . import journal_import
+        try:
+            journal_counts = journal_import.load(conn, history.journal)
+            conn.commit()
+        except Exception as exc:  # noqa: BLE001
+            conn.rollback()
+            errors["journal"] = type(exc).__name__
+            failed += 1
+    return {"dry_run": False, "journal": journal_counts, "days_imported": imported, "days_failed": failed,
             "from_payload_archive": len(history.from_payloads),
             "from_stored_json": len(history.from_legacy),
             "skipped_no_payload": history.skipped, "errors": errors}

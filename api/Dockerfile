@@ -3,7 +3,7 @@ WORKDIR /srv
 COPY pyproject.toml alembic.ini ./
 COPY app ./app
 COPY migrations ./migrations
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[bot]"
 RUN useradd -r lifey && mkdir -p /data/garmin_tokens && chown -R lifey /srv /data
 USER lifey
 EXPOSE 8000

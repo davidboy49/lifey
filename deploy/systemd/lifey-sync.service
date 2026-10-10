@@ -1,0 +1,9 @@
+[Unit]
+Description=Lifey: Garmin sync (rolling three days)
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lifey
+ExecStart=/usr/bin/docker compose -f /opt/lifey/compose.prod.yml run --rm sync smart 3
