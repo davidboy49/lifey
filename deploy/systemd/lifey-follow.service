@@ -1,0 +1,8 @@
+[Unit]
+Description=Lifey: follow the vidhealth database (read-only bridge)
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/lifey/deploy/follow.sh 7

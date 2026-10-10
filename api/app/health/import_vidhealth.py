@@ -66,6 +66,27 @@ def _json(value) -> dict | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def build_history(payload_rows, daily_rows) -> History:
+    """payload_rows: (date, received_at, id, payload_dict); daily_rows: (date, raw_json, synced_at).
+
+    Archived payloads win for a day; otherwise the stored merged payload is
+    replayed once, stamped with its own sync time."""
+    history = History()
+    for day, received, _, body in sorted(payload_rows, key=lambda r: (r[0], r[1] or "", r[2])):
+        history.replays[day].append((received, body))
+        history.from_payloads.add(day)
+    for day, raw_json, synced_at in daily_rows:
+        if not day or day in history.from_payloads:
+            continue
+        body = _json(raw_json)
+        if not body:
+            history.skipped[day] = "no stored payload"
+            continue
+        history.replays[day].append((_iso(synced_at), body))
+        history.from_legacy.add(day)
+    return history
+
+
 def read_dump(path: str) -> History:
     import pgdumplib  # optional dependency, only needed for imports
 
@@ -75,8 +96,6 @@ def read_dump(path: str) -> History:
         if needed not in entry:
             raise SystemExit(f"{needed} table not found: is this a vidhealth dump?")
 
-    history = History()
-
     sp_cols = _columns(entry["source_payloads"])
     payload_rows = []
     for row in dump.table_data("public", "source_payloads"):
@@ -85,23 +104,13 @@ def read_dump(path: str) -> History:
         if body is None or not rec.get("date"):
             continue
         payload_rows.append((rec["date"], _iso(rec.get("received_at")), int(rec.get("id") or 0), body))
-    # received_at ties inside one transaction; the identity id preserves insertion order.
-    for day, received, _, body in sorted(payload_rows, key=lambda r: (r[0], r[1] or "", r[2])):
-        history.replays[day].append((received, body))
-        history.from_payloads.add(day)
 
     dm_cols = _columns(entry["daily_metrics"])
+    daily_rows = []
     for row in dump.table_data("public", "daily_metrics"):
         rec = dict(zip(dm_cols, row))
-        day = rec.get("date")
-        if not day or day in history.from_payloads:
-            continue
-        body = _json(rec.get("raw_json"))
-        if not body:
-            history.skipped[day] = "no stored payload"
-            continue
-        history.replays[day].append((_iso(rec.get("synced_at")), body))
-        history.from_legacy.add(day)
+        daily_rows.append((rec.get("date"), rec.get("raw_json"), rec.get("synced_at")))
+    history = build_history(payload_rows, daily_rows)
     return history
 
 

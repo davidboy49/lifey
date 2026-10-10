@@ -14,7 +14,7 @@ if [ ! -f .env ]; then
   cat > .env <<EOF
 POSTGRES_PASSWORD=${pw}
 DATABASE_URL=postgresql://lifey:${pw}@db:5432/lifey
-HEALTH_TIMEZONE=Asia/Bangkok
+HEALTH_TIMEZONE=Asia/Phnom_Penh
 ENABLE_BANK_IMPORT=0
 APP_ORIGINS=https://lifey.fearlessonline.shop,http://localhost:8100
 AUTH_COOKIE_SECURE=1

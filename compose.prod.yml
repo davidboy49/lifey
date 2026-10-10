@@ -26,6 +26,13 @@ services:
     image: lifey-api:latest
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Inside the Sure network its web container is reachable by name.
+      # (The importer's own .env says 127.0.0.1:8099, which is the host.)
+      SURE_API_URL: http://sure-web-1:3000
+    volumes:
+      - /opt/sure_import:/opt/sure_import:ro
+    networks: [default, sure]
     ports:
       - "127.0.0.1:8101:8000"
     mem_limit: 256m
@@ -43,6 +50,11 @@ services:
     mem_limit: 256m
     depends_on:
       - api
+
+networks:
+  sure:
+    name: sure_sure_net
+    external: true
 
 volumes:
   pgdata:

@@ -30,7 +30,7 @@ def first_value(mapping, *keys):
 
 
 def user_timezone():
-    return ZoneInfo(os.getenv("HEALTH_TIMEZONE", "Asia/Bangkok"))
+    return ZoneInfo(os.getenv("HEALTH_TIMEZONE", "Asia/Phnom_Penh"))
 
 
 def today():
