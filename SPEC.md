@@ -26,7 +26,7 @@ plumbing and scaffolds notebooks with TODOs; it does not solve the ML exercises.
 | Device | One Garmin watch for the whole history (confirmed). No device-regime tagging. |
 | Timezone | `Asia/Phnom_Penh` everywhere (`HEALTH_TIMEZONE`, already used by `quality.today()`). |
 | Primary target | **Sleep (duration and score).** Secondary tracked: HRV overnight, resting HR, Body Battery morning high. |
-| Improvement target | **Deferred.** Defined as relative-to-own-baseline, magnitude set after Phase 2 from observed variance. Owner signs off the number. |
+| Improvement target | **Sleep: 28-day mean of 7.0 h** (set 2026-10-11 by owner; baseline then 6.3 h, SD about 2.3 h). HRV target still to be set. |
 | Morning briefing | 07:00 Asia/Phnom_Penh fixed. Contains: last night's verdict, today's forecast, biggest driver, did-the-action streak. Max 3 lines + exactly ONE action. |
 | Recovery mode | Auto-pushed after a detected crash night (definition in 6.3). |
 | Manual inputs | Alcohol (yes/no + units); workout RPE, late meal, caffeine. Collected in the 10pm check-in. Existing `/log` and `/habit` remain. Not collected: symptom score, supplements. |

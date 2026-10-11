@@ -105,6 +105,14 @@ def test_briefing_normal_day(pg):
     text = briefing.build(pg, END)
     _check_shape(text)
     assert "normal range" in text and "usual" in text
+    assert "7.0 h target" in text and "HRV" in text and "/100" not in text
+
+
+def test_briefing_action_closes_the_gap_to_target(pg):
+    seed(pg, last=dict(sleep_h=7.2, score=77, hrv=52, rhr=55, bb=81, stress=31))
+    text = briefing.build(pg, END)   # seeded baseline is about 7.2 h, near target
+    seed_gap = text.splitlines()[-1]
+    assert seed_gap.startswith("Action:") and "7.0 h" in seed_gap
 
 
 def test_briefing_crash_day_names_a_number(pg):
