@@ -234,3 +234,20 @@ before 30 stable days, rewriting the existing web app or bot.
   Timers: `lifey-nightly` 06:50 daily, `lifey-report` Sundays 08:00.
 - A day with no reading produces no predictions, so all models are scored on identical rows.
 - Still needed from the owner: notebook results (the winning model), then retrain script and artifact in the image.
+
+## 16. Web and ops log (written by the web/ops session, 2026-10-11)
+- Web **Sleep page** (`/sleep`, `api/app/sleep_report.py`, `api/app/sleep_routes.py`): sleep debt over the last
+  14 recorded nights, progress of the 28-day mean against `SLEEP_TARGET_H`, bedtime and wake-time regularity,
+  weekend split, and how HRV, resting HR, steps, mood and training look after short versus adequate nights.
+  Read-only. Reuses `briefing.SLEEP_TARGET_H` and `flags.MIN_PLAUSIBLE_SLEEP_H`, so the page and the bot agree.
+  Comparisons need 8 nights per group (`review.MIN_NIGHTS`). Garmin readiness and Body Battery are not used as
+  outcomes, since they are computed from the night itself. This is display analytics, not an ML feature, so it
+  does not live in `features.py` and is not part of the training/serving parity test.
+- **Backups (rule 7) verified, 2026-10-11:** the timer from section 13 is installed and has run. A restore drill
+  was done by decrypting the 2026-10-11 file with `lifey-secrets/lifey-backup.key` and piping it into
+  `pg_restore` in a scratch database: exit 0, all 17 tables present, row counts at or below the live ones.
+  **Gap:** `RCLONE_REMOTE` is `/var/backups/lifey`, a directory on the same disk, and rclone has no config.
+  The backup is not yet off-box. Needs the owner's choice of destination.
+- Not in the backup: `/opt/lifey/.env` (secrets) and the `lifey_garmin` token volume. Both are recreatable
+  (re-enter secrets, one fresh Garmin login) but should be noted in the restore runbook.
+- Two sessions now push to `main` and deploy with `deploy/deploy.sh`. Fetch before pushing.
