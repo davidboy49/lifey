@@ -79,6 +79,19 @@ export interface SleepResponse {
   };
   garmin_need: { hours: number; baseline_h: number; feedback: string | null; as_of: string } | null;
   suggestions: { id: string; title: string; detail: string; evidence: string[]; enough?: boolean }[];
+  walker: {
+    source: string;
+    critique: string;
+    window_days: number;
+    tips: {
+      id: string;
+      topic: string;
+      advice: string;
+      state: "look" | "fine" | "unknown" | "not_measured" | "info";
+      data: string | null;
+    }[];
+  };
+  doctor: { source: string; topics: string[]; flags: string[]; summary: string };
   evidence: Record<string, Evidence>;
   evidence_used: string[];
 }

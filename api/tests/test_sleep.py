@@ -138,3 +138,67 @@ def test_endpoint_reads_real_rows_and_keeps_gaps(client, pg):
 
 def test_endpoint_needs_a_session():
     assert TestClient(app).get("/api/sleep").status_code in (401, 503)
+
+
+# ---------- Walker's tips and the doctor panel ----------
+
+from app import sleep_advice as adv
+
+
+def _reg(irregular=False):
+    return {"enough": True, "nights": 12, "wake_sd_min": 90 if irregular else 15, "bed_sd_min": 80 if irregular else 20,
+            "usual_wake": "06:30", "usual_bed": "23:30", "irregular": irregular}
+
+
+def _tips(habit_days=None, entry_days=12, reg=None, awake=None, training=2):
+    return {t["id"]: t for t in adv.walker_tips(habit_days or {}, entry_days, reg or _reg(), awake, training)}
+
+
+def test_all_twelve_tips_are_present_and_each_says_what_lifey_can_see():
+    tips = adv.walker_tips({}, 12, _reg(), 38.0, 2)
+    assert len(tips) == 12 and len({t["id"] for t in tips}) == 12
+    assert {t["state"] for t in tips} <= {"look", "fine", "unknown", "not_measured", "info"}
+    unseen = [t for t in tips if t["state"] == "not_measured"]
+    assert {t["id"] for t in unseen} >= {"medicines", "wind_down", "bath", "light"}   # no data, and it says so
+
+
+def test_a_habit_is_called_out_only_with_enough_days_logged():
+    assert _tips({"late_caffeine": 4})["stimulants"]["state"] == "look"
+    assert _tips({})["stimulants"]["state"] == "fine"
+    assert _tips({"late_caffeine": 4}, entry_days=3)["stimulants"]["state"] == "unknown"    # silence is not "none"
+    assert _tips({"alcohol": 1})["alcohol"]["state"] == "fine"
+
+
+def test_irregular_timing_is_called_out_and_steady_timing_is_not():
+    assert _tips(reg=_reg(True))["schedule"]["state"] == "look"
+    assert _tips(reg=_reg(False))["schedule"]["state"] == "fine"
+    assert _tips(reg={"enough": False, "nights": 3})["schedule"]["state"] == "unknown"
+
+
+def test_nothing_in_the_advice_or_doctor_panel_claims_a_diagnosis():
+    tips = adv.walker_tips({"late_caffeine": 5, "alcohol": 4}, 14, _reg(True), 70.0, 0)
+    flags = adv.doctor_flags({"nights_counted": 12, "nights_under_6": 6, "window": 14}, _reg(True), 70.0)
+    text = " ".join(f"{t['topic']} {t['advice']} {t['data'] or ''}" for t in tips) + " ".join(flags) + " ".join(adv.doctor_topics())
+    for word in ("diagnos", "you have insomnia", "you have sleep apnea", "disorder"):
+        assert word not in text.lower(), word
+
+
+def test_the_doctor_summary_states_its_source_and_its_blind_spots():
+    nights = [night(i, 6.0 if i % 3 else 7.5, bed_min=330, wake_min=420, awake_min=40.0) for i in range(28)]
+    summary = adv.doctor_summary(nights, sr.regularity(nights), adv.awake_average(nights), "2026-10-11")
+    assert "not a sleep study" in summary and "Nights recorded: 28 of 28" in summary
+    assert "Not measured by Lifey: snoring" in summary and "Average sleep:" in summary
+
+
+def test_extra_studies_state_their_limits():
+    for key, ev in adv.EXTRA_EVIDENCE.items():
+        assert ev["caveat"] and ev["confidence"] in {"strong", "moderate", "weak"} and ev["url"].startswith("https://"), key
+    assert "disputed" in adv.EXTRA_EVIDENCE["walker2017"]["caveat"]
+
+
+def test_endpoint_includes_walker_tips_and_the_doctor_panel(client, pg):
+    body = client.get("/api/sleep").json()
+    assert len(body["walker"]["tips"]) == 12 and body["walker"]["source"] in body["evidence"]
+    assert body["walker"]["critique"] in body["evidence"]
+    assert body["doctor"]["source"] in body["evidence"] and len(body["doctor"]["topics"]) == 5
+    assert "Not measured by Lifey" in body["doctor"]["summary"]

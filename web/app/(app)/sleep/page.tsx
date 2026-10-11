@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { ApiDown } from "@/components/ApiDown";
+import { CopySummary } from "@/components/CopySummary";
 import { SleepBars } from "@/components/SleepBars";
 import { apiGet } from "@/lib/api";
 import { shortDay } from "@/lib/journal";
@@ -11,6 +12,14 @@ const CONF: Record<string, string> = {
   strong: "bg-good-soft text-good",
   moderate: "bg-accent-soft text-accent",
   weak: "bg-watch-soft text-watch",
+};
+
+const TIP_STATE: Record<string, { label: string; cls: string }> = {
+  look: { label: "Worth a look", cls: "bg-watch-soft text-watch" },
+  fine: { label: "Nothing to flag", cls: "bg-good-soft text-good" },
+  info: { label: "For information", cls: "bg-accent-soft text-accent" },
+  unknown: { label: "Can't tell yet", cls: "hatch border border-dashed border-ink-3/50 text-ink-3" },
+  not_measured: { label: "Not measured", cls: "border border-line text-ink-3" },
 };
 
 function Card({ label, children, note }: { label: string; children: React.ReactNode; note?: React.ReactNode }) {
@@ -189,6 +198,65 @@ export default async function SleepPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="grid gap-3" aria-labelledby="sl-walker">
+        <div>
+          <h2 id="sl-walker" className="eyebrow">Matthew Walker’s twelve tips, against your own record</h2>
+          <p className="mt-1 max-w-[72ch] text-sm text-ink-2">
+            These are the practical tips from the appendix of Walker’s book <i>Why We Sleep</i> (2017), paraphrased, with what your last{" "}
+            {s.walker.window_days} days say about each one. Where Lifey has no data for a tip it says so. They are standard sleep-hygiene advice. Some of the
+            book’s statistics have been{" "}
+            <a href={`#ev-${s.walker.critique}`} className="text-accent underline underline-offset-2">disputed by independent reviewers</a>
+            {" "}and are not used here. This is Lifey applying the published tips, not advice from Dr. Walker.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {s.walker.tips.map((t) => {
+            const st = TIP_STATE[t.state];
+            return (
+              <article key={t.id} className="card grid content-start gap-2 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-semibold">{t.topic}</h3>
+                  <span className={`rounded-full px-2.5 py-0.5 font-mono text-[11px] uppercase tracking-wider ${st.cls}`}>{st.label}</span>
+                </div>
+                <p className="text-[14.5px] text-ink-2">{t.advice}</p>
+                {t.data && <p className="rounded-xl bg-panel px-3 py-2 text-[13.5px]">{t.data}</p>}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="card grid gap-4 p-5 sm:p-6" aria-labelledby="sl-doctor">
+        <div>
+          <h2 id="sl-doctor" className="font-display text-xl font-semibold">When to talk to a doctor</h2>
+          <p className="mt-1 max-w-[72ch] text-sm text-ink-2">
+            Lifey cannot diagnose a sleep problem. A wrist sensor estimates sleep; it cannot show insomnia, sleep apnea or restless legs. Sleep medicine
+            guidance is to raise any of these with a doctor and to bring a record of your sleep.
+          </p>
+        </div>
+        <ul className="grid gap-2 text-[15px]">
+          {s.doctor.topics.map((topic) => (
+            <li key={topic} className="flex gap-2.5"><span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-ink-3" />{topic}</li>
+          ))}
+        </ul>
+        {s.doctor.flags.length > 0 && (
+          <div className="rounded-xl bg-watch-soft px-4 py-3 text-sm text-watch">
+            <p className="font-semibold">In your numbers, worth mentioning</p>
+            <ul className="mt-1 grid gap-1">
+              {s.doctor.flags.map((f) => <li key={f}>{f}</li>)}
+            </ul>
+          </div>
+        )}
+        <CopySummary text={s.doctor.summary} />
+        <p className="text-sm text-ink-3">
+          Source:{" "}
+          <a href={s.evidence[s.doctor.source].url} target="_blank" rel="noopener noreferrer" className="text-accent underline underline-offset-2">
+            AASM patient guidance
+          </a>
+          . If you ever stop breathing at night, feel unsafe driving because of sleepiness, or feel very low, get medical help rather than waiting for a trend.
+        </p>
       </section>
 
       <section className="grid gap-3" aria-labelledby="sl-evidence">

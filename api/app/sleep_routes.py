@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends
 
-from . import db, sleep_report as sr
+from . import db, sleep_advice as advice, sleep_report as sr
 from .auth.deps import current_user
 from .bot import store, training_plan
 from .health import quality
@@ -66,6 +66,19 @@ def sleep_overview() -> dict:
     used = {eid for t in tips for eid in t["evidence"]}
     last = nights[-1]
 
+    # Walker's published tips against the last 14 days of the person's own entries.
+    window_start = (today - timedelta(days=advice.CHECK_DAYS - 1)).isoformat()
+    recent = [l for l in logs if str(l["date"])[:10] >= window_start]
+    entry_days = {str(l["date"])[:10] for l in recent}
+    habit_days: dict[str, set[str]] = {}
+    for l in recent:
+        if e.kind(l) == "habit":
+            habit_days.setdefault(e.habit_tag(l), set()).add(str(l["date"])[:10])
+    training_days = len({d for d in trained_days if d >= window_start})
+    awake = advice.awake_average(nights)
+    walker = advice.walker_tips({t: len(v) for t, v in habit_days.items()}, len(entry_days), reg, awake, training_days)
+    evidence = {**sr.EVIDENCE, **advice.EXTRA_EVIDENCE}
+
     return {
         "today": today.isoformat(),
         "target_h": sr.SLEEP_TARGET_H,
@@ -79,6 +92,18 @@ def sleep_overview() -> dict:
         "outcomes": outcomes,
         "garmin_need": need,
         "suggestions": tips,
-        "evidence": {k: v for k, v in sr.EVIDENCE.items()},
+        "walker": {
+            "source": "walker2017",
+            "critique": "guzey2019",
+            "tips": walker,
+            "window_days": advice.CHECK_DAYS,
+        },
+        "doctor": {
+            "source": "aasm_talk",
+            "topics": advice.doctor_topics(),
+            "flags": advice.doctor_flags(debt, reg, awake),
+            "summary": advice.doctor_summary(nights, reg, awake, today.isoformat()),
+        },
+        "evidence": evidence,
         "evidence_used": sorted(used),
     }
