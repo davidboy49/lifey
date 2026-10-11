@@ -1,0 +1,9 @@
+[Unit]
+Description=Lifey: baselines, crash-night flag and morning briefing
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lifey
+ExecStart=/usr/bin/docker compose -f /opt/lifey/compose.prod.yml --profile ml run --rm ml --send

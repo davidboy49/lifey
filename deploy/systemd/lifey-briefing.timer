@@ -1,0 +1,9 @@
+[Unit]
+Description=Lifey morning briefing, 07:00 Phnom Penh (enable only after AGENT_BOT_TOKEN is set in .env)
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 Asia/Phnom_Penh
+Persistent=false
+
+[Install]
+WantedBy=timers.target

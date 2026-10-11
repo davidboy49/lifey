@@ -80,6 +80,19 @@ services:
       db:
         condition: service_healthy
 
+  # One-shot health intelligence job (flags, crash night, briefing), run by lifey-briefing.timer:
+  #   compose --profile ml run --rm ml            # print only
+  #   compose --profile ml run --rm ml --send     # also deliver via AGENT_BOT_TOKEN
+  ml:
+    image: lifey-api:latest
+    profiles: ["ml"]
+    env_file: .env
+    entrypoint: ["python", "-m", "app.ml.briefing"]
+    mem_limit: 384m
+    depends_on:
+      db:
+        condition: service_healthy
+
   web:
     image: lifey-web:latest
     restart: unless-stopped

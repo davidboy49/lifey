@@ -53,6 +53,7 @@ def pg(database_url, monkeypatch):
         admin.execute("DROP SCHEMA IF EXISTS health CASCADE")
         admin.execute("DROP SCHEMA IF EXISTS auth CASCADE")
         admin.execute("DROP SCHEMA IF EXISTS journal CASCADE")
+        admin.execute("DROP SCHEMA IF EXISTS ml CASCADE")
         admin.execute("DROP TABLE IF EXISTS public.alembic_version")
     migrate(database_url)
     monkeypatch.setenv("DATABASE_URL", database_url)

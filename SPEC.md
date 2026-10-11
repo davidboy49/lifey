@@ -121,9 +121,18 @@ Trailing 28-day mean and SD per metric excluding the evaluated day, minimum prio
 z-score, flag at |z| >= 1.5. Reuses `readiness.baseline`/`spread` where sensible; one implementation only.
 
 ### 6.3 Crash night
-Proposal (tune in Phase 2 on his own history): last night's `hrv_last_night` z <= -1.5 OR
-`sleep_score`/`sleep_duration` z <= -1.5, with at least 14 prior baseline days. Triggers recovery
-mode once per detection, de-duplicated by date.
+Rule `z28-v2`, tuned in Phase 2 on 92 trusted days of real history: last night's HRV is at least
+1.5 SD below its 28-day baseline AND at least one sleep metric (score or hours) is at least 1.0 SD
+below its own, with at least 14 prior baseline days. Candidate rules on the same data:
+
+| Rule | Nights | Per month |
+|---|---|---|
+| any of HRV/score/hours <= -1.5 (original proposal) | 20 | ~6.5 |
+| any of HRV/score/hours <= -2.0 | 12 | ~3.9 |
+| **HRV <= -1.5 AND (score or hours <= -1.0)** (adopted) | 10 | ~3.3 |
+| at least 2 of 3 <= -1.0 | 22 | ~7.2 |
+
+Triggers recovery mode once per detected night, de-duplicated by date.
 
 ### 6.4 Forecasting (Phase 3)
 Target: next-night sleep duration and score (horizon 1 day); secondary HRV 1-day. Candidates:
@@ -163,7 +172,7 @@ chat ID except `TELEGRAM_CHAT_ID`.
 | # | Name | Work | Done when |
 |---|---|---|---|
 | 1 | Verify and close ingestion gaps (IN PROGRESS, see 13) | Clone repo, run tests, check live row count and gaps, add sleep-to-wake-date test, decide bridge vs direct Garmin, stand up backup | `daily_metrics` has >= 90 rows with coverage report; sync runs on schedule; backup restores |
-| 2 | Baselines + anomalies | `features.py` v1, `ml.daily_flags`, crash-night rule, flags into briefing text (template, no LLM) | 7 consecutive days of correct flags; owner sets improvement target |
+| 2 | Baselines + anomalies (BUILT, see 14) | `features.py` v1, `ml.daily_flags`, crash-night rule, flags into briefing text (template, no LLM) | 7 consecutive days of correct flags; owner sets improvement target |
 | 3 | ML notebooks | Scaffolds only (owner writes the ML); then nightly job, registry, accuracy report, retrain gate | Weekly accuracy report vs naive is produced for 2 weeks |
 | 4 | Agent | Second bot, tools, briefing, recovery mode, 22:00 check-in, spend log | Chat answers via tools; 7 days of briefing + check-in without manual fixes |
 
@@ -206,3 +215,11 @@ before 30 stable days, rewriting the existing web app or bot.
 - Added: sleep wake-date guard in `quality.parse_daily` + test; `app.ml.coverage` read-only report + tests;
   `deploy/backup.sh`, `deploy/restore-drill.sh`, `lifey-backup.{service,timer}` (written, NOT yet run on the VPS).
 - Pending on the VPS (owner runs; needs live DB): coverage report, cutover/bridge decision, backup install.
+
+## 14. Phase 2 log
+- 2026-10-11: migration 0005 (`ml.daily_flags`, `ml.crash_nights`); `app/ml/features.py` (single feature
+  source), `flags.py`, `briefing.py`; compose service `ml`; `lifey-briefing.{service,timer}` (timer NOT enabled:
+  needs `AGENT_BOT_TOKEN`). 140 tests.
+- Crash rule changed from the 6.3 proposal after measuring it on real data (see 6.3).
+- Open: owner sets the improvement target from the baselines (needs his sign-off); 7 consecutive days of
+  correct flags before Phase 3.

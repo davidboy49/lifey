@@ -67,6 +67,7 @@ Read `SPEC.md` first. This file is the rule set. Place both files at the repo ro
 - 2026-10-10: Briefing 07:00, check-in 22:00, recovery mode automatic.
 - 2026-10-10: Paid cheap LLM tier, DeepSeek chosen by owner; USD 5/month cap.
 - 2026-10-10: One watch for the whole history; crash-night thresholds accepted as proposals.
+- 2026-10-11: Crash night = HRV z<=-1.5 AND (sleep score or hours z<=-1.0), measured on real history (~3/month).
 - 2026-10-10: Backups via rclone to a cloud drive, encrypted.
 
 ## Open items (resolve in Phase 1)
