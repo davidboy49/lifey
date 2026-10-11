@@ -59,6 +59,14 @@ def render(flags: list[dict], crash: dict, day: date) -> str:
 
     lines = ["Last night: " + ", ".join(_reading(f) for f in have) + "."]
     reasons = crash["reasons"]
+    if flagmod.INCOMPLETE in reasons:
+        bb = by["bb_max"]["value"]
+        seen = [f"sleep {_fmt('sleep_hours', by['sleep_hours']['value'])}"] if by["sleep_hours"]["value"] is not None else []
+        if bb is not None:
+            seen.append(f"Body Battery high {bb:.0f}")
+        lines.append(f"Recording looks incomplete ({', '.join(seen)}); not treated as a crash night.")
+        lines.append("Action: wear the watch tonight and sync in the morning; no recovery verdict from a partial night.")
+        return "\n".join(lines)
     low = [k for k in PRIMARY + SECONDARY if by[k]["flag"] == "low" and BY_KEY[k].higher_is_better]
     high_bad = [k for k in SECONDARY if by[k]["flag"] == "high" and not BY_KEY[k].higher_is_better]
     short_baseline = [k for k in have if k["flag"] == "insufficient_baseline"]

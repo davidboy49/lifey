@@ -77,6 +77,16 @@ def test_one_signal_alone_is_not_a_crash(pg):
     assert flags.compute_day(frame(pg), END)[1]["crash"] is False
 
 
+def test_partial_recording_is_not_a_crash(pg):
+    # 1.6 h and Body Battery high 5: the watch missed most of the night.
+    seed(pg, last=dict(sleep_h=1.6, score=16, hrv=19, rhr=69, bb=5, stress=61))
+    _, crash = flags.compute_day(frame(pg), END)
+    assert crash == {"date": END, "crash": False, "reasons": ["incomplete_recording"]}
+    text = briefing.build(pg, END)
+    _check_shape(text)
+    assert "incomplete" in text and "Crash night" not in text and "partial night" in text
+
+
 def test_normal_night_is_not_a_crash(pg):
     seed(pg, last=dict(sleep_h=7.2, score=77, hrv=52, rhr=55, bb=81, stress=31))
     _, crash = flags.compute_day(frame(pg), END)

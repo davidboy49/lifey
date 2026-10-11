@@ -132,6 +132,8 @@ below its own, with at least 14 prior baseline days. Candidate rules on the same
 | **HRV <= -1.5 AND (score or hours <= -1.0)** (adopted) | 10 | ~3.3 |
 | at least 2 of 3 <= -1.0 | 22 | ~7.2 |
 
+Plausibility guard (`z28-v3`): sleep under 3.0 h or morning Body Battery high under 10 is reported as an
+incomplete recording and never as a crash night (found when 2026-10-10 read 1.6 h and BB 5).
 Triggers recovery mode once per detected night, de-duplicated by date.
 
 ### 6.4 Forecasting (Phase 3)
