@@ -137,6 +137,9 @@ def get_home_keyboard():
             InlineKeyboardButton("📈 Recovery", callback_data="cmd:recover"),
             InlineKeyboardButton("📝 Weekly Recap", callback_data="cmd:week"),
         ],
+        [
+            InlineKeyboardButton("📦 Export CSV", callback_data="cmd:export"),
+        ],
     ])
 
 HOME_TEXT = "🏠 <b>Hermes Health Coach</b>\n\nTap a button below, or type any message to log it as a free note."
@@ -167,6 +170,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📈 /recover - Recorded recovery observations\n"
         "📝 /week - Latest AI coaching weekly summary\n"
         "📋 /actionplan - Latest forward-looking action plan & watch-list\n"
+        "📦 /export - Daily metrics, journal & habits as CSV (`/export 30` or `/export all`)\n"
         "❓ /status - Quick biometric readiness update\n\n"
         "💡 *Tip: You can also send me any plain text message to log a quick Free Note!*"
     )
@@ -965,6 +969,12 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
                 await handler(update, context)
             return
 
+        if data.startswith("export:"):
+            window = _export_window(data[len("export:"):])
+            if window is not False:
+                await send_export(query.message, window)
+            return
+
         if data == "quit:clean":
             s = quit_tracker.summarize(db.get_quit_logs(), quality.today())
             if s["relapsed_today"]:
@@ -1157,6 +1167,54 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             pass
 
 # Commands reachable from buttons, keyed by their /command name.
+EXPORT_DATASETS = ("daily_metrics", "journal", "habits")
+EXPORT_WINDOWS = (("7 days", "7"), ("30 days", "30"), ("90 days", "90"), ("Everything", "all"))
+
+
+def _export_window(arg: str) -> int | None | bool:
+    """days (int), None for everything, or False when the argument is not a window."""
+    arg = arg.strip().lower()
+    if arg in ("all", "everything"):
+        return None
+    if arg.isdigit() and 1 <= int(arg) <= 3650:
+        return int(arg)
+    return False
+
+
+async def send_export(message, window: int | None):
+    """Send the three datasets as CSV files, ready to hand to an AI assistant."""
+    from app import data_routes
+    stamp = quality.today().isoformat()
+    label = "all history" if window is None else f"last {window} days"
+    await message.reply_text(f"📦 Preparing your export ({label})…")
+    for name in EXPORT_DATASETS:
+        text, count = await asyncio.to_thread(data_routes.csv_text, name, window)
+        suffix = "all" if window is None else f"{window}d"
+        await message.reply_document(
+            document=text.encode("utf-8-sig"),
+            filename=f"lifey-{name}-{suffix}-{stamp}.csv",
+            caption=f"{data_routes.DATASETS[name]['label']}: {count} rows ({label})",
+        )
+
+
+async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await check_auth(update, context):
+        return
+    target = reply_target(update)
+    if context.args:
+        window = _export_window(context.args[0])
+        if window is False:
+            await target.reply_text("Usage: /export [days|all], for example /export 30")
+            return
+        await send_export(target, window)
+        return
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(label, callback_data=f"export:{value}")
+                                      for label, value in EXPORT_WINDOWS]])
+    await target.reply_text(
+        "📦 <b>Export</b>\n\nDaily metrics, journal and habits as CSV files. How far back?",
+        reply_markup=keyboard, parse_mode="HTML")
+
+
 COMMANDS = {
     "menu": menu_command,
     "streak": streak_command,
@@ -1177,6 +1235,7 @@ COMMANDS = {
     "recover": recover_command,
     "week": week_command,
     "actionplan": actionplan_command,
+    "export": export_command,
 }
 
 # Shown in Telegram's "Menu" button next to the text box.
@@ -1202,6 +1261,7 @@ BOT_COMMANDS = [
     BotCommand("recover", "Recovery observations"),
     BotCommand("week", "Latest weekly recap"),
     BotCommand("actionplan", "Latest action plan"),
+    BotCommand("export", "Export metrics, journal & habits as CSV"),
     BotCommand("start", "Welcome & keyboard"),
 ]
 
@@ -1278,6 +1338,7 @@ def main():
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("spo2", spo2_command))
     app.add_handler(CommandHandler("sync", sync_command))
+    app.add_handler(CommandHandler("export", export_command))
     
     # Inline buttons callback handler
     app.add_handler(CallbackQueryHandler(callback_query_handler))

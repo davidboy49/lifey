@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import csv
 import io
+from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -79,6 +80,18 @@ DATASETS: dict[str, dict] = {
                     ("value", "Value", "number"), ("saved_at", "Saved", "time"), ("recalled", "Recalled", "chip"),
                     ("origin", "Origin", "text")],
         "default_hidden": ["id", "origin"],
+    },
+    "habits": {
+        "label": "Habits",
+        "sql": """SELECT id, date::text AS date, tag AS habit, value AS units, note,
+                         ts AS saved_at, (ts::date > date) AS recalled
+                  FROM journal.activity_logs WHERE category = 'unholy_habit'""",
+        "order": "date, ts",
+        "count": "SELECT count(*) FROM journal.activity_logs WHERE category = 'unholy_habit'",
+        "columns": [("id", "ID", "number"), ("date", "Date", "date"), ("habit", "Habit", "text"),
+                    ("units", "Units", "number"), ("note", "Note", "text"), ("saved_at", "Saved", "time"),
+                    ("recalled", "Recalled", "chip")],
+        "default_hidden": ["id"],
     },
     "alerts": {
         "label": "Alerts",
@@ -165,17 +178,30 @@ def _safe_cell(v):
     return "" if v is None else v
 
 
-@router.get("/{name}/export.csv")
-def export_csv(name: str) -> Response:
+def csv_text(name: str, days: int | None = None) -> tuple[str, int]:
+    """The dataset as CSV text, oldest first, and its row count.
+
+    `days` keeps only the last N local days (today included); None keeps everything.
+    Used by the web export and by the Telegram /export command.
+    """
     ds = _dataset(name)
     rows = _fetch(ds, order_desc=False, limit=EXPORT_LIMIT)
     keys = [k for k, _, _ in ds["columns"]]
+    if days is not None and "date" in keys:
+        cutoff = (quality.today() - timedelta(days=days - 1)).isoformat()
+        rows = [r for r in rows if str(r.get("date") or "")[:10] >= cutoff]
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([lab for _, lab, _ in ds["columns"]])
     for row in rows:
         writer.writerow([_safe_cell(row.get(k)) for k in keys])
+    return buf.getvalue(), len(rows)
+
+
+@router.get("/{name}/export.csv")
+def export_csv(name: str) -> Response:
+    text, _ = csv_text(name)
     filename = f"lifey-{name}-{quality.today().isoformat()}.csv"
-    return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
+    return Response(text, media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"',
                              "Cache-Control": "no-store"})

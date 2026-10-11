@@ -207,7 +207,7 @@ def test_dataset_list_and_table(client, pg):
                                             "sleep_error": "down"})
     pg.commit()
     names = {d["key"]: d["rows"] for d in client.get("/api/data").json()}
-    assert names["daily_metrics"] == 1 and set(names) == {"daily_metrics", "activities", "journal", "alerts", "sync_runs"}
+    assert names["daily_metrics"] == 1 and set(names) == {"daily_metrics", "activities", "journal", "habits", "alerts", "sync_runs"}
     t = client.get("/api/data/daily_metrics").json()
     row = t["rows"][0]
     assert row["steps"] == 5000 and row["sleep_score"] is None            # a gap is null, never zero
@@ -233,14 +233,28 @@ def test_every_dataset_loads_and_exports_with_rows_present(client, pg):
                         "activityType": {"typeKey": "running"}, "duration": 1800, "distance": 5200, "calories": 300}]})
     pg.commit()
     put(quality.today(), "free_note", "note", None, "hello")
+    put(quality.today(), "unholy_habit", "late_caffeine", 1.0, "espresso")
     pg.execute("INSERT INTO health.sync_runs(status, details) VALUES ('success', '{}'::jsonb)")
     pg.execute("""INSERT INTO journal.anomaly_alerts (date, severity, alert_type, message, algorithm_version)
                   VALUES ('2026-10-09', 'INFO', 'SPO2_MIN', 'm', 'observations-v1')""")
     pg.commit()
-    for key in ("daily_metrics", "activities", "journal", "alerts", "sync_runs"):
+    for key in ("daily_metrics", "activities", "journal", "habits", "alerts", "sync_runs"):
         t = client.get(f"/api/data/{key}")
         assert t.status_code == 200, f"{key}: {t.text[:120]}"
         assert t.json()["total"] >= 1 and len(t.json()["rows"]) >= 1, key
         assert client.get(f"/api/data/{key}/export.csv").status_code == 200, key
     run = client.get("/api/data/activities").json()["rows"][0]
     assert run["minutes"] == 30.0 and run["km"] == 5.2
+
+
+def test_csv_text_window_and_habits_dataset(client, pg):
+    from app import data_routes
+    today = quality.today()
+    put(today, "unholy_habit", "alcohol", 2.0, "two pints")
+    put(today - timedelta(days=40), "unholy_habit", "alcohol", 1.0, "old")
+    put(today, "free_note", "note", None, "not a habit")
+    everything, n_all = data_routes.csv_text("habits")
+    recent, n_recent = data_routes.csv_text("habits", 7)
+    assert n_all == 2 and n_recent == 1
+    assert "two pints" in recent and "old" not in recent and "not a habit" not in everything
+    assert everything.splitlines()[0].startswith("ID,Date,Habit,Units")

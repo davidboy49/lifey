@@ -286,3 +286,29 @@ def test_statement_import_parses_summary_and_reports_crashes(monkeypatch, tmp_pa
     assert bot.run_statement_import("x.xlsx") == {"rows_imported": 3, "rows_skipped_dupe": 1}
     script.write_text('import sys; sys.exit("Sure API key rejected")')
     assert "Sure API key rejected" in bot.run_statement_import("x.xlsx")["error"]
+
+
+def test_export_sends_three_csv_files(monkeypatch):
+    from app import data_routes
+    monkeypatch.setattr(bot, "AUTHORIZED_CHAT_ID", "123")
+    monkeypatch.setattr(data_routes, "csv_text", lambda name, days=None: ("a,b" + chr(10) + name, 1))
+    message = SimpleNamespace(reply_text=AsyncMock(), reply_document=AsyncMock())
+    update = SimpleNamespace(effective_chat=SimpleNamespace(id=123), message=message, callback_query=None)
+    asyncio.run(bot.export_command(update, SimpleNamespace(args=["30"])))
+    sent = [c.kwargs["filename"] for c in message.reply_document.call_args_list]
+    assert len(sent) == 3
+    assert any("daily_metrics" in f for f in sent) and any("journal" in f for f in sent) and any("habits" in f for f in sent)
+    assert all(f.endswith(".csv") for f in sent)
+
+
+def test_export_without_a_window_offers_buttons_and_rejects_nonsense(monkeypatch):
+    monkeypatch.setattr(bot, "AUTHORIZED_CHAT_ID", "123")
+    message = SimpleNamespace(reply_text=AsyncMock(), reply_document=AsyncMock())
+    update = SimpleNamespace(effective_chat=SimpleNamespace(id=123), message=message, callback_query=None)
+    asyncio.run(bot.export_command(update, SimpleNamespace(args=[])))
+    markup = message.reply_text.call_args.kwargs["reply_markup"]
+    assert [b.callback_data for b in markup.inline_keyboard[0]] == ["export:7", "export:30", "export:90", "export:all"]
+    message.reply_text.reset_mock()
+    asyncio.run(bot.export_command(update, SimpleNamespace(args=["banana"])))
+    assert "Usage" in message.reply_text.call_args.args[0]
+    message.reply_document.assert_not_called()
