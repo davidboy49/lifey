@@ -13,3 +13,9 @@ backups/
 AGENTS.md
 
 .backup.env
+
+# ML workspace: health data and trained models never go to git
+ml/data/
+ml/models/
+*.joblib
+.ipynb_checkpoints/

@@ -47,6 +47,21 @@ METRICS: tuple[Metric, ...] = (
 BY_KEY = {m.key: m for m in METRICS}
 
 
+# One definition of the export, used by `app.ml.export` and by anyone pulling data for notebooks.
+EXPORT_SQL = ("SELECT date, " + ", ".join(
+    f"{m.column}::float / {m.scale} AS {m.key}" if m.scale != 1.0 else f"{m.column}::float AS {m.key}"
+    for m in METRICS) + " FROM health.daily_metrics ORDER BY date")
+
+
+def frame_from_csv(path) -> pd.DataFrame:
+    """Same frame as `load_daily`, from a CSV made with EXPORT_SQL. Gaps stay NaN rows."""
+    raw = pd.read_csv(path, parse_dates=["date"]).set_index("date")
+    index = pd.date_range(raw.index.min(), raw.index.max(), freq="D", name="date")
+    frame = raw.reindex(index)
+    frame["row_present"] = frame.index.isin(raw.index)
+    return frame[[*[m.key for m in METRICS], "row_present"]]
+
+
 def load_daily(conn, start: date, end: date) -> pd.DataFrame:
     """Raw daily metrics over [start, end] on a complete calendar index."""
     columns = ", ".join(f"{m.column} AS {m.key}" for m in METRICS)
