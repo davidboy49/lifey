@@ -1,0 +1,9 @@
+[Unit]
+Description=Lifey forecasts, daily after the morning sync
+
+[Timer]
+OnCalendar=*-*-* 06:50:00 Asia/Phnom_Penh
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Lifey weekly accuracy report, Sundays 08:00 Phnom Penh
+
+[Timer]
+OnCalendar=Sun *-*-* 08:00:00 Asia/Phnom_Penh
+Persistent=false
+
+[Install]
+WantedBy=timers.target

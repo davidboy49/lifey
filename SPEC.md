@@ -175,7 +175,7 @@ chat ID except `TELEGRAM_CHAT_ID`.
 |---|---|---|---|
 | 1 | Verify and close ingestion gaps (IN PROGRESS, see 13) | Clone repo, run tests, check live row count and gaps, add sleep-to-wake-date test, decide bridge vs direct Garmin, stand up backup | `daily_metrics` has >= 90 rows with coverage report; sync runs on schedule; backup restores |
 | 2 | Baselines + anomalies (BUILT, see 14) | `features.py` v1, `ml.daily_flags`, crash-night rule, flags into briefing text (template, no LLM) | 7 consecutive days of correct flags; owner sets improvement target |
-| 3 | ML notebooks | Scaffolds only (owner writes the ML); then nightly job, registry, accuracy report, retrain gate | Weekly accuracy report vs naive is produced for 2 weeks |
+| 3 | ML notebooks (SCAFFOLDS DONE, 3b INFRA BUILT, see 15) | Scaffolds only (owner writes the ML); then nightly job, registry, accuracy report, retrain gate | Weekly accuracy report vs naive is produced for 2 weeks |
 | 4 | Agent | Second bot, tools, briefing, recovery mode, 22:00 check-in, spend log | Chat answers via tools; 7 days of briefing + check-in without manual fixes |
 
 Feature freeze: no new features until the current version has run 30 consecutive days.
@@ -225,3 +225,12 @@ before 30 stable days, rewriting the existing web app or bot.
 - Crash rule changed from the 6.3 proposal after measuring it on real data (see 6.3).
 - Open: owner sets the improvement target from the baselines (needs his sign-off); 7 consecutive days of
   correct flags before Phase 3.
+
+## 15. Phase 3 log
+- 2026-10-11: notebooks 00-03 scaffolded (`ml/`), `evaluate.py`, `export.py`, `frame_from_csv`.
+- 2026-10-12: Phase 3b plumbing, model-agnostic: migration 0006 (`ml.predictions`, `ml.model_registry`,
+  `ml.accuracy_weekly`), `nightly.py` (naive + mean7 baselines logged daily, actuals filled), `report.py`
+  (weekly accuracy vs naive and mean7, promotion gate `should_promote`), `registry.py` (register, promote, keep 3).
+  Timers: `lifey-nightly` 06:50 daily, `lifey-report` Sundays 08:00.
+- A day with no reading produces no predictions, so all models are scored on identical rows.
+- Still needed from the owner: notebook results (the winning model), then retrain script and artifact in the image.
