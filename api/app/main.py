@@ -14,6 +14,7 @@ from .auth.routes import router as auth_router
 from .demo import today_payload
 from .health import read, sync as garmin_sync
 from .data_routes import router as data_router
+from .sleep_routes import router as sleep_router
 from .journal.habit_routes import router as habits_router
 from .journal.review_routes import router as review_router
 from .journal.routes import router as journal_router
@@ -42,6 +43,7 @@ app.include_router(journal_router)
 app.include_router(habits_router)
 app.include_router(review_router)
 app.include_router(data_router)
+app.include_router(sleep_router)
 protected = [Depends(auth_deps.current_user)]
 
 
