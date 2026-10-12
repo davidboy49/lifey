@@ -251,3 +251,12 @@ before 30 stable days, rewriting the existing web app or bot.
 - Not in the backup: `/opt/lifey/.env` (secrets) and the `lifey_garmin` token volume. Both are recreatable
   (re-enter secrets, one fresh Garmin login) but should be noted in the restore runbook.
 - Two sessions now push to `main` and deploy with `deploy/deploy.sh`. Fetch before pushing.
+
+## 17. Baseline fix (2026-10-12)
+- Baselines, `mean7` and scored actuals now skip partial recordings (`features.incomplete_mask`: sleep < 3.0 h
+  or morning Body Battery high < 10). The raw value stays in the frame with an `incomplete` flag.
+  Only night-derived metrics are affected (sleep hours, sleep score, HRV, Body Battery high); resting HR and
+  stress keep the day. Flags rule version `z28-v4`.
+- Effect on real data: 28-day sleep baseline for 2026-10-11 went from 6.3 h to 6.8 h, matching Lifey's own
+  sleep analysis (6.78 h). A partial night is never a prediction input or an outcome.
+- Bug caught in testing: NULL Body Battery made the actuals filter evaluate to NULL; fixed with COALESCE.

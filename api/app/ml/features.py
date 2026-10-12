@@ -24,6 +24,11 @@ BASELINE_WINDOW = 28      # calendar days
 MIN_BASELINE_DAYS = 14    # real readings required before a baseline is trusted
 FLAG_Z = 1.5
 REL_SD_FLOOR = 0.02       # same idea as readiness.spread: a flat history never yields a huge z
+# Partial-recording rule (owner-approved 2026-10-11/12). Matches the one night Lifey's own
+# sleep analysis excludes (2026-10-10: 1.6 h, Body Battery high 5); real short nights are 3.7 h+.
+INCOMPLETE_SLEEP_H = 3.0
+INCOMPLETE_BB_MAX = 10.0
+NIGHT_METRICS = ("sleep_hours", "sleep_score", "hrv", "bb_max")   # corrupted by a partial night
 
 
 @dataclass(frozen=True)
@@ -80,12 +85,35 @@ def load_daily(conn, start: date, end: date) -> pd.DataFrame:
     return frame
 
 
+def incomplete_mask(frame: pd.DataFrame) -> pd.Series:
+    """True for nights that are a partial recording (watch off or not tracking).
+
+    Named and flagged on purpose (CLAUDE.md rule 3): the value stays in the frame, but baselines,
+    mean7 and scored actuals skip it. Missing readings are not "incomplete", they stay missing.
+    """
+    short = frame["sleep_hours"] < INCOMPLETE_SLEEP_H
+    drained = frame["bb_max"] < INCOMPLETE_BB_MAX
+    return (short | drained).fillna(False).astype(bool)
+
+
+def clean(frame: pd.DataFrame, key: str) -> pd.Series:
+    """The series to compute baselines from: night-derived metrics lose their incomplete nights."""
+    series = frame[key]
+    if key in NIGHT_METRICS and "incomplete" in frame:
+        return series.where(~frame["incomplete"])
+    return series
+
+
 def baseline_features(frame: pd.DataFrame, metric: Metric) -> pd.DataFrame:
-    """value, trailing baseline (excluding the day), spread, z, and missing flag."""
+    """value, trailing baseline (excluding the day), spread, z, and missing flag.
+
+    The reported `value` is the raw reading. The baseline is built from `clean(...)`.
+    """
     value = frame[metric.key]
-    prior = value.shift(1).rolling(BASELINE_WINDOW, min_periods=MIN_BASELINE_DAYS)
+    base = clean(frame, metric.key)
+    prior = base.shift(1).rolling(BASELINE_WINDOW, min_periods=MIN_BASELINE_DAYS)
     mean, sd = prior.mean(), prior.std(ddof=0)
-    n = value.shift(1).rolling(BASELINE_WINDOW, min_periods=1).count()
+    n = base.shift(1).rolling(BASELINE_WINDOW, min_periods=1).count()
     spread = pd.concat([sd.fillna(0.0), mean.abs() * REL_SD_FLOOR], axis=1).max(axis=1).clip(lower=1e-6)
     z = (value - mean) / spread
     return pd.DataFrame({
@@ -100,7 +128,8 @@ def baseline_features(frame: pd.DataFrame, metric: Metric) -> pd.DataFrame:
 
 def build(frame: pd.DataFrame) -> pd.DataFrame:
     """Feature matrix, one row per calendar day. Pure: no I/O."""
-    parts = [frame[["row_present"]]] + [baseline_features(frame, m) for m in METRICS]
+    frame = frame.assign(incomplete=incomplete_mask(frame))
+    parts = [frame[["row_present", "incomplete"]]] + [baseline_features(frame, m) for m in METRICS]
     out = pd.concat(parts, axis=1)
     out["n_metrics_present"] = sum((~out[f"{m.key}_missing"]).astype(int) for m in METRICS)
     return out

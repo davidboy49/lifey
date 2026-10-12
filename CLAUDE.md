@@ -63,6 +63,7 @@ Read `SPEC.md` first. This file is the rule set. Place both files at the repo ro
 ## Decisions log
 - 2026-10-10: Extend existing repo; no n8n; second bot for the agent; Python only.
 - 2026-10-10: Primary target next-night sleep; HRV, RHR, Body Battery secondary.
+- 2026-10-12: Baselines, mean7 and scored actuals exclude incomplete nights (single rule in features.incomplete_mask).
 - 2026-10-11: Incomplete-recording guard: sleep < 3 h or BB high < 10 is never a crash night.
 - 2026-10-11: Sleep target = 28-day mean 7.0 h (baseline 6.3 h). Briefing action closes the gap to it.
 - 2026-10-10: Briefing 07:00, check-in 22:00, recovery mode automatic.

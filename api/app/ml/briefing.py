@@ -103,7 +103,8 @@ def render(flags: list[dict], crash: dict, day: date) -> str:
         action = (f"train as planned and be in bed early enough for {SLEEP_TARGET_H:.1f} h tonight; "
                   f"your 28-day average is {sleep_base:.1f} h.")
     elif sleep_base:
-        action = f"train as planned and hold bedtime; you are at your {SLEEP_TARGET_H:.1f} h sleep target."
+        action = (f"train as planned and hold bedtime; your 28-day average of {sleep_base:.1f} h "
+                  f"is within 0.25 h of the {SLEEP_TARGET_H:.1f} h target.")
     else:
         action = "log how today goes; there is not enough history for a baseline yet."
     lines.append("Action: " + action)

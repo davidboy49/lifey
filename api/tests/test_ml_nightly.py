@@ -129,3 +129,24 @@ def test_promoted_artifact_is_used(pg, tmp_path):
     nightly.run(pg, D)
     got = {r[0]: r[1] for r in preds(pg)}
     assert got["stub"] == pytest.approx(got["naive"] + 1.0)
+
+
+def test_partial_night_is_not_a_reading_or_an_outcome(pg):
+    seed(pg, through=D - timedelta(days=1))
+    pg.execute("INSERT INTO health.daily_metrics (date, sleep_duration, bb_max) VALUES (%s,%s,%s)",
+               (D, round(1.6 * 3600), 5))
+    pg.commit()
+    nightly.run(pg, D)
+    assert preds(pg) == []                                   # today's partial night: no predictions
+    seed_day = D + timedelta(days=1)
+    put(pg, D - timedelta(days=0) + timedelta(days=1), 7.0)  # a normal night tomorrow
+    pg.execute("UPDATE health.daily_metrics SET sleep_duration=%s, bb_max=%s WHERE date=%s",
+               (round(7.0 * 3600), 80, D))
+    pg.commit()
+    nightly.run(pg, D)
+    assert len(preds(pg)) == 2
+    pg.execute("UPDATE health.daily_metrics SET sleep_duration=%s, bb_max=%s WHERE date=%s",
+               (round(1.2 * 3600), 4, seed_day))             # the target night turns out partial
+    pg.commit()
+    assert nightly.fill_actuals(pg, seed_day) == 0
+    assert {r[4] for r in preds(pg)} == {None}

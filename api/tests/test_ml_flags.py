@@ -156,3 +156,16 @@ def test_briefing_goes_through_the_bot_that_answers_commands(monkeypatch):
     monkeypatch.delenv("TELEGRAM_BOT_TOKEN")
     assert briefing._delivery() == ("agent-token", False)
     assert all(b["callback_data"].startswith("cmd:") for row in briefing.MENU_BUTTONS for b in row)
+
+def test_baseline_excludes_partial_nights_but_keeps_the_raw_value(pg):
+    partial = END - timedelta(days=5)
+    seed(pg, skip={partial}, last=dict(sleep_h=7.2, score=77, hrv=52, rhr=55, bb=81, stress=31))
+    put(pg, partial, sleep_h=1.6, score=16, hrv=19, rhr=69, bb=5, stress=61)
+    pg.commit()
+    f = frame(pg)
+    row = f.loc[partial.isoformat()]
+    assert bool(row["incomplete"]) and row["sleep_hours"] == pytest.approx(1.6)   # raw value kept
+    end = f.loc[END.isoformat()]
+    assert 6.9 < end["sleep_hours_baseline"] < 7.5          # not dragged down by the 1.6 h night
+    assert end["sleep_hours_baseline_n"] == 27              # 28-day window minus the partial night
+    assert end["resting_hr_baseline_n"] == 28               # daytime metrics keep it

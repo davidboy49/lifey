@@ -21,16 +21,16 @@ from ..health import quality
 from . import features
 from .features import FLAG_Z, METRICS, MIN_BASELINE_DAYS
 
-VERSION = "z28-v3"
+VERSION = "z28-v4"   # v4: baselines exclude incomplete nights (features.incomplete_mask)
 # Crash night = HRV is HRV_CRASH_Z below its own baseline AND sleep corroborates (either
 # sleep metric SLEEP_CORROBORATE_Z below its baseline). Tuned on 92 trusted days of real
 # history: the looser "any one metric" rule fired on ~22% of nights (~6.5/month), this one
 # on ~11% (~3.3/month) and every hit has both signals.
-# Plausibility guard (owner-approved 2026-10-11): a night this short, or a morning Body Battery
-# this low, is a partial recording (watch off or not tracking), not evidence of a crash.
-MIN_PLAUSIBLE_SLEEP_H = 3.0
-MIN_PLAUSIBLE_BB_MAX = 10.0
+# A partial recording (features.incomplete_mask) is never a crash night.
 INCOMPLETE = "incomplete_recording"
+# Public names other modules import (app/sleep_report.py). The rule itself lives in features.py.
+MIN_PLAUSIBLE_SLEEP_H = features.INCOMPLETE_SLEEP_H
+MIN_PLAUSIBLE_BB_MAX = features.INCOMPLETE_BB_MAX
 HRV_CRASH_Z = 1.5
 SLEEP_CORROBORATE_Z = 1.0
 SLEEP_METRICS = ("sleep_score", "sleep_hours")
@@ -59,9 +59,7 @@ def compute_day(frame: pd.DataFrame, day: date) -> tuple[list[dict], dict]:
             "value": value, "z": z,
             "baseline": _num(row[f"{m.key}_baseline"]), "sd": _num(row[f"{m.key}_sd"]),
         })
-    values = {f["metric"]: f["value"] for f in flags}
-    if ((values["sleep_hours"] is not None and values["sleep_hours"] < MIN_PLAUSIBLE_SLEEP_H)
-            or (values["bb_max"] is not None and values["bb_max"] < MIN_PLAUSIBLE_BB_MAX)):
+    if bool(row["incomplete"]):
         return flags, {"date": day, "crash": False, "reasons": [INCOMPLETE]}
     z = {f["metric"]: f["z"] for f in flags if f["flag"] != "insufficient_baseline"}
     hrv_low = z.get("hrv") is not None and z["hrv"] <= -HRV_CRASH_Z

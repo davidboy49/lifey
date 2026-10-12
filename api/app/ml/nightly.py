@@ -38,10 +38,10 @@ def baseline_predictions(frame: pd.DataFrame, made_on: date, metric: str = TARGE
     ts = pd.Timestamp(made_on)
     if ts not in frame.index:
         return []
-    series = frame[metric]
+    series = features.clean(frame, metric)   # partial recordings are not readings
     naive = _num(series.loc[ts])
     if naive is None:
-        return []   # no reading today: no predictions, so every model is scored on the same rows
+        return []   # no (usable) reading today: no predictions, so every model is scored on the same rows
     mean7 = _num(series.rolling(MEAN7_WINDOW, min_periods=MEAN7_MIN).mean().loc[ts])
     rows = []
     for name, value in (("naive", naive), ("mean7", mean7)):
@@ -100,11 +100,16 @@ def fill_actuals(conn, today: date) -> int:
         m = BY_KEY.get(key)
         if m is None:
             continue
+        # A partial recording is not an outcome to score against: leave the actual NULL.
+        # COALESCE: a NULL Body Battery or duration must read as "not partial", never as NULL.
+        partial = (f" AND NOT (COALESCE(d.sleep_duration < {features.INCOMPLETE_SLEEP_H * 3600}, false) "
+                   f"OR COALESCE(d.bb_max < {features.INCOMPLETE_BB_MAX}, false))"
+                   ) if key in features.NIGHT_METRICS else ""
         cur = conn.execute(
             f"""UPDATE ml.predictions p SET actual = d.{m.column}::float / %s, actual_filled_at = NOW()
                 FROM health.daily_metrics d
                 WHERE p.metric = %s AND p.actual IS NULL AND d.date = p.target_date
-                  AND d.{m.column} IS NOT NULL""", (m.scale, key))
+                  AND d.{m.column} IS NOT NULL{partial}""", (m.scale, key))
         filled += cur.rowcount
     return filled
 

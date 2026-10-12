@@ -58,6 +58,8 @@ Keep outputs out of git: the repo is public and outputs contain your numbers
 - `sleep_score`, `bb_max` and Garmin readiness are *derived* from sleep and HRV. Same-night derived scores must
   not predict the metric they were derived from.
 - Baselines and rolling windows must exclude the day being predicted (`features.py` already does).
+- Partial nights (`incomplete` column, sleep < 3 h or Body Battery high < 10) are not valid readings: baselines and
+  `features.clean(frame, key)` skip them. Decide deliberately whether your own features should too.
 - No scaling, selection or tuning on the validation fold.
 - If a shuffled-target run still scores well, something leaks.
 
