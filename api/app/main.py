@@ -3,6 +3,7 @@ import logging
 import os
 import tempfile
 import threading
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -18,9 +19,27 @@ from .sleep_routes import router as sleep_router
 from .journal.habit_routes import router as habits_router
 from .journal.review_routes import router as review_router
 from .journal.routes import router as journal_router
+from .connector import oauth as connector_oauth
 from .models import Today
 
-app = FastAPI(title="Lifey API", version="0.1.0", docs_url=None, redoc_url=None, openapi_url=None)
+# The Claude connector (remote MCP + OAuth) is opt-in: nothing extra is exposed unless ENABLE_MCP=1.
+connector_app = None
+if connector_oauth.enabled():
+    from .connector.server import build as build_connector
+
+    connector_app = build_connector()
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if connector_app is None:
+        yield
+    else:
+        async with connector_app.router.lifespan_context(connector_app):
+            yield
+
+
+app = FastAPI(title="Lifey API", version="0.1.0", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 MAX_UPLOAD = 10 * 1024 * 1024
 
 if auth_deps.auth_disabled():
@@ -44,6 +63,10 @@ app.include_router(habits_router)
 app.include_router(review_router)
 app.include_router(data_router)
 app.include_router(sleep_router)
+if connector_app is not None:
+    from .connector.login import router as connector_login_router
+
+    app.include_router(connector_login_router)
 protected = [Depends(auth_deps.current_user)]
 
 
@@ -132,3 +155,8 @@ async def money_import(file: UploadFile = File(...)) -> dict:
     if "error" in summary:
         raise HTTPException(502, summary["error"])
     return summary
+
+
+# Last, so every route above wins: /mcp, /authorize, /token, /register and the .well-known documents.
+if connector_app is not None:
+    app.mount("/", connector_app)

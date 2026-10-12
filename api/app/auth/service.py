@@ -129,5 +129,6 @@ def revoke_session(conn: Connection, token: str | None) -> None:
 def revoke_all(conn: Connection, user_id: int, except_session: int | None = None) -> int:
     cur = conn.execute("DELETE FROM auth.sessions WHERE user_id=%s AND id IS DISTINCT FROM %s",
                        (user_id, except_session))
+    conn.execute("DELETE FROM auth.oauth_tokens WHERE user_id=%s", (user_id,))   # connectors too
     conn.commit()
     return cur.rowcount

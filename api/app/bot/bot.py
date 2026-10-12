@@ -1342,6 +1342,11 @@ def main():
     
     # Inline buttons callback handler
     app.add_handler(CallbackQueryHandler(callback_query_handler))
+
+    async def on_error(update, context):
+        # Telegram's side hiccups (Bad Gateway, timeouts) are retried by polling; just note them.
+        logger.warning(f"Bot error: {type(context.error).__name__}: {context.error}")
+    app.add_error_handler(on_error)
     
     # Free text message handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))

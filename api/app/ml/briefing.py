@@ -117,12 +117,29 @@ def build(conn, day: date | None = None) -> str:
     return render(flags, crash, day)
 
 
+MENU_BUTTONS = [[{"text": "🏠 Menu", "callback_data": "cmd:menu"}, {"text": "💪 Gym", "callback_data": "cmd:gym"}],
+                [{"text": "😴 Health", "callback_data": "cmd:health"}, {"text": "🔄 Sync", "callback_data": "cmd:sync"}]]
+
+
+def _delivery() -> tuple[str | None, bool]:
+    """(token, is_main_bot). The briefing goes through the Lifey bot, which answers commands, so the
+    message has buttons you can act on. The send-only agent bot is used only when BRIEFING_BOT=agent."""
+    if os.environ.get("BRIEFING_BOT", "").strip().lower() == "agent":
+        return os.environ.get("AGENT_BOT_TOKEN"), False
+    main = os.environ.get("TELEGRAM_BOT_TOKEN")
+    return (main, True) if main else (os.environ.get("AGENT_BOT_TOKEN"), False)
+
+
 def send(text: str) -> None:
-    """Deliver via the dedicated agent bot. Refuses unless token and chat id are both set."""
-    token, chat = os.environ.get("AGENT_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+    """Deliver the briefing. Refuses unless a bot token and the chat id are both set."""
+    token, is_main = _delivery()
+    chat = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat:
-        raise RuntimeError("AGENT_BOT_TOKEN and TELEGRAM_CHAT_ID must both be set to send")
-    body = urllib.parse.urlencode({"chat_id": chat, "text": text}).encode()
+        raise RuntimeError("TELEGRAM_BOT_TOKEN (or AGENT_BOT_TOKEN) and TELEGRAM_CHAT_ID must be set to send")
+    fields = {"chat_id": chat, "text": text}
+    if is_main:
+        fields["reply_markup"] = json.dumps({"inline_keyboard": MENU_BUTTONS})
+    body = urllib.parse.urlencode(fields).encode()
     request = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=body)
     with urllib.request.urlopen(request, timeout=20) as response:
         if not json.load(response).get("ok"):

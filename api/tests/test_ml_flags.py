@@ -141,5 +141,18 @@ def test_briefing_says_so_when_there_is_no_data(pg):
 
 def test_send_refuses_without_token(monkeypatch):
     monkeypatch.delenv("AGENT_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
     with pytest.raises(RuntimeError):
         briefing.send("x")
+
+
+def test_briefing_goes_through_the_bot_that_answers_commands(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "main-token")
+    monkeypatch.setenv("AGENT_BOT_TOKEN", "agent-token")
+    assert briefing._delivery() == ("main-token", True)
+    monkeypatch.setenv("BRIEFING_BOT", "agent")
+    assert briefing._delivery() == ("agent-token", False)
+    monkeypatch.delenv("BRIEFING_BOT")
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN")
+    assert briefing._delivery() == ("agent-token", False)
+    assert all(b["callback_data"].startswith("cmd:") for row in briefing.MENU_BUTTONS for b in row)

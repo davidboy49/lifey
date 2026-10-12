@@ -178,24 +178,30 @@ def _safe_cell(v):
     return "" if v is None else v
 
 
+def rows(name: str, days: int | None = None) -> list[dict]:
+    """The dataset's rows, oldest first. `days` keeps the last N local days (today included)."""
+    ds = _dataset(name)
+    found = _fetch(ds, order_desc=False, limit=EXPORT_LIMIT)
+    if days is not None and any(k == "date" for k, _, _ in ds["columns"]):
+        cutoff = (quality.today() - timedelta(days=days - 1)).isoformat()
+        found = [r for r in found if str(r.get("date") or "")[:10] >= cutoff]
+    return found
+
+
 def csv_text(name: str, days: int | None = None) -> tuple[str, int]:
     """The dataset as CSV text, oldest first, and its row count.
 
-    `days` keeps only the last N local days (today included); None keeps everything.
     Used by the web export and by the Telegram /export command.
     """
     ds = _dataset(name)
-    rows = _fetch(ds, order_desc=False, limit=EXPORT_LIMIT)
+    found = rows(name, days)
     keys = [k for k, _, _ in ds["columns"]]
-    if days is not None and "date" in keys:
-        cutoff = (quality.today() - timedelta(days=days - 1)).isoformat()
-        rows = [r for r in rows if str(r.get("date") or "")[:10] >= cutoff]
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([lab for _, lab, _ in ds["columns"]])
-    for row in rows:
+    for row in found:
         writer.writerow([_safe_cell(row.get(k)) for k in keys])
-    return buf.getvalue(), len(rows)
+    return buf.getvalue(), len(found)
 
 
 @router.get("/{name}/export.csv")

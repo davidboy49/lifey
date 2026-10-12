@@ -19,6 +19,7 @@ ENABLE_BANK_IMPORT=0
 APP_ORIGINS=https://lifey.fearlessonline.shop,http://localhost:8100
 AUTH_COOKIE_SECURE=1
 WEB_URL=https://lifey.fearlessonline.shop
+ENABLE_MCP=1
 EOF
   echo "created .env (secrets generated, not printed)"
 fi
