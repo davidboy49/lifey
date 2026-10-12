@@ -82,6 +82,34 @@ def validate_selection(selection, evidence):
     return required <= set(selection["fact_ids"])
 
 
+ICONS = {
+    "hrv_last_night": "📈", "hrv_weekly_avg": "📊", "resting_hr": "❤️", "sleep_score": "😴",
+    "sleep_duration": "🛏️", "training_readiness": "⚡", "stress_avg": "🌀", "steps": "👟",
+    "spo2_avg": "🫁", "spo2_min": "🫁",
+}
+SHORT_LABELS = {"hrv_weekly_avg": "HRV weekly avg", "training_readiness": "Training readiness",
+                "spo2_avg": "SpO2 average", "spo2_min": "SpO2 minimum", "stress_avg": "Stress average"}
+# Garmin's own bands for the two scores it grades; a dot only, no new judgement.
+BANDS = {"training_readiness": (75, 50), "sleep_score": (80, 60)}
+
+
+def _dot(metric, value):
+    if metric not in BANDS:
+        return ""
+    good, fair = BANDS[metric]
+    return " 🟢" if value >= good else " 🟡" if value >= fair else " 🔴"
+
+
+def _amount(metric, value, unit):
+    if metric == "sleep_duration":
+        minutes = round(value * 60)
+        return f"{minutes // 60}h {minutes % 60:02d}m"
+    number = f"{value:,.0f}"
+    if unit == "steps":
+        return number
+    return number + (unit if unit.startswith(("/", "%")) else f" {unit}")
+
+
 def render(evidence, selection=None):
     if not evidence["facts"]:
         return "No verified source metrics are available for coaching. Sync or rebuild source provenance first."
@@ -89,11 +117,19 @@ def render(evidence, selection=None):
         latest_fact_date = max(f["date"] for f in evidence["facts"])
         selection = {"fact_ids": [f["id"] for f in evidence["facts"] if f["date"] == latest_fact_date],
                      "action_ids": [a["id"] for a in evidence["actions"]]}
-    lines = [f"Recorded period: {evidence['period_start']} to {evidence['period_end']}", evidence["notice"], "", "Recorded facts:"]
-    lines.extend(f"- {f['text']} [{f['id']}]" for f in evidence["facts"] if f["id"] in selection["fact_ids"])
+    lines = [f"📅 Recorded period: {evidence['period_start']} to {evidence['period_end']}", evidence["notice"],
+             "Values are as reported by Garmin."]
+    chosen = [f for f in evidence["facts"] if f["id"] in selection["fact_ids"]]
+    for day in sorted({f["date"] for f in chosen}, reverse=True):
+        lines.extend(["", f"🗓 {day}"])
+        for f in (f for f in chosen if f["date"] == day):
+            label, unit, _ = METRICS[f["metric"]]
+            label = SHORT_LABELS.get(f["metric"], label)
+            lines.append(f"{ICONS.get(f['metric'], '•')} {label}: {_amount(f['metric'], f['value'], unit)}"
+                         f"{_dot(f['metric'], f['value'])}")
     if selection["action_ids"]:
-        lines.extend(["", "Optional coaching suggestions:"])
-        lines.extend(f"- {a['text']} [{', '.join(a['evidence_ids'])}]" for a in evidence["actions"] if a["id"] in selection["action_ids"])
+        lines.extend(["", "💡 Optional suggestions"])
+        lines.extend(f"• {a['text']}" for a in evidence["actions"] if a["id"] in selection["action_ids"])
     else:
         lines.extend(["", "No additional training instruction is justified by these rules and available data."])
     return "\n".join(lines)
