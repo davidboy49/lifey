@@ -120,6 +120,24 @@ def habits(days: int = 30) -> dict:
             "note": "Counts are what was logged. Not logging a habit on a day does not prove it did not happen."}
 
 
+def checkins(days: int = 30) -> dict:
+    """Evening check-in answers. A day that was not answered is unknown, not a dry or easy day."""
+    n = clamp_days(days, 30)
+    found = data_routes.rows("checkins", n)
+    answered = {f: [r for r in found if r.get(f) is not None] for f in ("alcohol_units", "late_caffeine", "late_meal", "rpe")}
+    return {
+        "window_days": n, "days_answered": len(found),
+        "alcohol": {"days_asked": len(answered["alcohol_units"]),
+                    "days_with_alcohol": sum(1 for r in answered["alcohol_units"] if r["alcohol_units"] > 0),
+                    "total_drinks": round(sum(r["alcohol_units"] for r in answered["alcohol_units"]), 1)},
+        "late_caffeine_days": sum(1 for r in answered["late_caffeine"] if r["late_caffeine"]),
+        "late_meal_days": sum(1 for r in answered["late_meal"] if r["late_meal"]),
+        "workouts": {"days_asked": len(answered["rpe"]),
+                     "days_trained": sum(1 for r in answered["rpe"] if r["rpe"] and r["rpe"] > 0)},
+        "days": found[-MAX_ROWS:],
+    }
+
+
 def sleep() -> dict:
     """The Sleep page: debt, target progress, regularity, weekend split, and what the data suggests."""
     from ..sleep_routes import sleep_overview
@@ -145,6 +163,7 @@ def digest(days: int = DEFAULT_DAYS) -> dict:
         "sleep": {k: s[k] for k in ("last_night", "progress", "debt", "regularity", "weekend", "suggestions")
                   if k in s} | {"doctor_flags": s["doctor_flags"]},
         "habits": hb["habits"],
+        "checkins": checkins(n),
         "journal": {"by_kind": j["by_kind"],
                     "notes": [x for x in j["entries"] if x["kind"] in ("note", "checkin", "quit")][:60]},
         "reading_guide": ["Missing data is absent, never zero.",

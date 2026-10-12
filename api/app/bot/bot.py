@@ -33,7 +33,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 import asyncio
 
 from app import money
-from app.bot import analytics, anomaly as anomaly_detector, coaching, quit_tracker, reports, training_plan
+from app.bot import analytics, anomaly as anomaly_detector, checkin, coaching, quit_tracker, reports, training_plan
 from app.bot import store as db
 from app.health import quality
 
@@ -728,6 +728,38 @@ async def nightly_checkin(context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def habit_checkin(context: ContextTypes.DEFAULT_TYPE):
+    """Evening questions about the day; skipped when today already has answers."""
+    today = quality.today().isoformat()
+    if await asyncio.to_thread(db.get_checkin, today):
+        return
+    text, markup = checkin.question(today, 0)
+    await context.bot.send_message(chat_id=AUTHORIZED_CHAT_ID, text=text, reply_markup=markup, parse_mode="HTML")
+
+
+async def checkin_answer(query, data: str) -> None:
+    """Save the tapped answer, mirror a "yes" into the journal, and show the next question or the summary."""
+    parsed = checkin.parse(data)
+    if not parsed:
+        return
+    day, field, raw = parsed
+    if raw is not None:
+        await asyncio.to_thread(db.save_checkin_answer, day, field, float(raw))
+        tag = checkin.habit_tag(field)
+        if tag and float(raw) > 0:
+            existing = await asyncio.to_thread(db.get_activity_logs, day)
+            if not any(l.get("category") == "unholy_habit" and l.get("tag") == tag for l in existing):
+                await asyncio.to_thread(db.log_activity, date_str=day, category="unholy_habit", tag=tag,
+                                        note="from evening check-in", value=float(raw))
+    nxt = checkin.step_index(field) + 1
+    if nxt < len(checkin.STEPS):
+        text, markup = checkin.question(day, nxt)
+        await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
+        return
+    row = await asyncio.to_thread(db.get_checkin, day)
+    await query.edit_message_text(f"✅ <b>Check-in saved</b> · {day}\n\n{checkin.summary(row)}", parse_mode="HTML")
+
+
 def bank_import_enabled() -> bool:
     return money.enabled()
 
@@ -967,6 +999,10 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             handler = COMMANDS.get(data[len("cmd:"):])
             if handler:
                 await handler(update, context)
+            return
+
+        if data.startswith("ci:"):
+            await checkin_answer(query, data)
             return
 
         if data.startswith("export:"):
@@ -1291,6 +1327,15 @@ async def post_init(app: Application):
             logger.warning(f"{env}={value!r} is not HH:MM; that broadcast is disabled.")
             continue
         app.job_queue.run_daily(job, at, name=job.__name__)
+
+    habit_time = os.environ.get("HABIT_CHECKIN_TIME", "22:00").strip()
+    if habit_time.lower() != "off":
+        try:
+            hour, minute = (int(x) for x in habit_time.split(":"))
+            app.job_queue.run_daily(habit_checkin, dtime(hour, minute, tzinfo=quality.user_timezone()),
+                                    name="habit_checkin")
+        except ValueError:
+            logger.warning(f"HABIT_CHECKIN_TIME={habit_time!r} is not HH:MM; the evening check-in is disabled.")
 
     review_time = os.environ.get("WEEKLY_REVIEW_TIME", "19:00").strip()
     if review_time.lower() != "off":

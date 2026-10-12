@@ -135,12 +135,14 @@ def test_full_flow_code_is_single_use_and_tools_work(app_client):
         "protocolVersion": "2025-03-26", "capabilities": {},
         "clientInfo": {"name": "t", "version": "1"}}).status_code == 200
     names = {t["name"] for t in rpc(app_client, token, "tools/list", id_=2).json()["result"]["tools"]}
-    assert {"lifey_digest", "lifey_health", "lifey_journal", "lifey_habits", "lifey_sleep"} <= names
+    assert {"lifey_digest", "lifey_health", "lifey_journal", "lifey_habits", "lifey_sleep", "lifey_checkins"} <= names
 
     habits = call(app_client, token, "lifey_habits", {"days": 7})
     assert habits["habits"][0]["tag"] == "alcohol" and habits["habits"][0]["total_units"] == 2.0
     journal = call(app_client, token, "lifey_journal", {"days": 7, "kind": "habit"})
     assert journal["entries"][0]["note"] == "two pints"
+    store.save_checkin_answer(quality.today().isoformat(), "alcohol_units", 2)
+    assert call(app_client, token, "lifey_checkins", {"days": 7})["alcohol"]["total_drinks"] == 2.0
     digest = call(app_client, token, "lifey_digest", {"days": 7})
     assert digest["habits"][0]["habit"] == "Alcohol" and "reading_guide" in digest
 

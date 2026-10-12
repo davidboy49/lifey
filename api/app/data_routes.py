@@ -93,6 +93,17 @@ DATASETS: dict[str, dict] = {
                     ("recalled", "Recalled", "chip")],
         "default_hidden": ["id"],
     },
+    "checkins": {
+        "label": "Evening check-ins",
+        "sql": """SELECT date::text AS date, alcohol_units, late_caffeine, late_meal, rpe, answered_at
+                  FROM journal.checkins""",
+        "order": "date",
+        "count": "SELECT count(*) FROM journal.checkins",
+        "columns": [("date", "Date", "date"), ("alcohol_units", "Alcohol (drinks)", "number"),
+                    ("late_caffeine", "Late caffeine", "chip"), ("late_meal", "Late meal", "chip"),
+                    ("rpe", "Workout effort (0 = none)", "number"), ("answered_at", "Answered", "time")],
+        "default_hidden": [],
+    },
     "alerts": {
         "label": "Alerts",
         "sql": """SELECT id, date::text AS date, severity, alert_type, message, alert_state, delivered, ts

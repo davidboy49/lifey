@@ -207,7 +207,7 @@ def test_dataset_list_and_table(client, pg):
                                             "sleep_error": "down"})
     pg.commit()
     names = {d["key"]: d["rows"] for d in client.get("/api/data").json()}
-    assert names["daily_metrics"] == 1 and set(names) == {"daily_metrics", "activities", "journal", "habits", "alerts", "sync_runs"}
+    assert names["daily_metrics"] == 1 and set(names) == {"daily_metrics", "activities", "journal", "habits", "checkins", "alerts", "sync_runs"}
     t = client.get("/api/data/daily_metrics").json()
     row = t["rows"][0]
     assert row["steps"] == 5000 and row["sleep_score"] is None            # a gap is null, never zero
@@ -234,11 +234,12 @@ def test_every_dataset_loads_and_exports_with_rows_present(client, pg):
     pg.commit()
     put(quality.today(), "free_note", "note", None, "hello")
     put(quality.today(), "unholy_habit", "late_caffeine", 1.0, "espresso")
+    store.save_checkin_answer(quality.today().isoformat(), "rpe", 6)
     pg.execute("INSERT INTO health.sync_runs(status, details) VALUES ('success', '{}'::jsonb)")
     pg.execute("""INSERT INTO journal.anomaly_alerts (date, severity, alert_type, message, algorithm_version)
                   VALUES ('2026-10-09', 'INFO', 'SPO2_MIN', 'm', 'observations-v1')""")
     pg.commit()
-    for key in ("daily_metrics", "activities", "journal", "habits", "alerts", "sync_runs"):
+    for key in ("daily_metrics", "activities", "journal", "habits", "checkins", "alerts", "sync_runs"):
         t = client.get(f"/api/data/{key}")
         assert t.status_code == 200, f"{key}: {t.text[:120]}"
         assert t.json()["total"] >= 1 and len(t.json()["rows"]) >= 1, key

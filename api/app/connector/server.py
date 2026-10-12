@@ -79,6 +79,12 @@ def build():
         return await asyncio.to_thread(tools.habits, days)
 
     @mcp.tool(annotations=READ_ONLY)
+    async def lifey_checkins(days: int = 30) -> dict:
+        """Evening check-in answers for the last N days (alcohol, caffeine after 2pm, late meal, workout effort).
+        Unanswered days are unknown, not zero."""
+        return await asyncio.to_thread(tools.checkins, days)
+
+    @mcp.tool(annotations=READ_ONLY)
     async def lifey_activities(days: int = 30) -> dict:
         """Workouts and activities from Garmin for the last N days (default 30)."""
         return await asyncio.to_thread(tools.activities, days)

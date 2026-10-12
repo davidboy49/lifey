@@ -260,3 +260,33 @@ def get_activity_logs_between(start: str, end: str) -> list[dict]:
     return _stamp(_rows(
         f"SELECT {_LOG_COLUMNS} FROM journal.activity_logs WHERE date >= %(a)s AND date <= %(b)s "
         "ORDER BY date DESC, ts DESC, id DESC", {"a": start, "b": end}))
+
+
+# ---------- evening check-in ----------
+
+CHECKIN_COLUMNS = {"alcohol_units": float, "late_caffeine": bool, "late_meal": bool, "rpe": int}
+
+
+def save_checkin_answer(date_str: str, field: str, value) -> None:
+    """Record one answer. `field` is whitelisted; other fields on the day are left as they were."""
+    if field not in CHECKIN_COLUMNS:
+        raise ValueError(f"unknown check-in field {field!r}")
+    cast = CHECKIN_COLUMNS[field]
+    converted = bool(int(value)) if cast is bool else cast(value)
+    with database.connect() as conn:
+        conn.execute(
+            f"INSERT INTO journal.checkins (date, {field}) VALUES (%s, %s) "
+            f"ON CONFLICT (date) DO UPDATE SET {field} = EXCLUDED.{field}, answered_at = NOW()",
+            (date_str, converted))
+        conn.commit()
+
+
+def get_checkin(date_str: str) -> dict | None:
+    rows = _rows("SELECT date::text AS date, alcohol_units, late_caffeine, late_meal, rpe "
+                 "FROM journal.checkins WHERE date = %(d)s", {"d": date_str})
+    if not rows:
+        return None
+    row = rows[0]
+    if row.get("alcohol_units") is not None:
+        row["alcohol_units"] = float(row["alcohol_units"])
+    return row
