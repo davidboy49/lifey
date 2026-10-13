@@ -18,7 +18,7 @@ export interface HabitRow {
 }
 
 export interface WellbeingRow {
-  tag: "mood" | "energy";
+  tag: "mood" | "energy" | "wake";
   label: string;
   cells: { date: string; state: CellState; value?: number; level?: number }[];
   average: number | null;
@@ -61,6 +61,14 @@ export interface HabitsResponse {
   wellbeing: WellbeingRow[];
   quit: { card: QuitCard | null; strip: QuitCell[] };
   catalog: CatalogHabit[];
+  feeling: { today: number | null; ratings: Record<string, number>; by_run: FeelingByRun };
+}
+
+export interface FeelingByRun {
+  rows: { label: string; n: number; mean: number | null; enough: boolean }[];
+  rated_days: number;
+  placed: number;
+  needed: number;
 }
 
 export interface Review {

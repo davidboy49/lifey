@@ -1,7 +1,7 @@
 """Habits: the grid, the softened quit card, and the user's own habit list."""
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -11,6 +11,7 @@ from ..bot import quit_tracker, store
 from ..health import quality
 from . import entries as e
 from . import habits as h
+from .review import MIN_NIGHTS
 from . import repo
 
 router = APIRouter(prefix="/api/habits", tags=["habits"], dependencies=[Depends(current_user)])
@@ -49,15 +50,41 @@ def overview(weeks: int = Query(5, ge=1, le=26)) -> dict:
     quit_logs = store.get_quit_logs()
     summary = quit_tracker.summarize(quit_logs, today)
     strip = h.quit_strip(store.get_activity_logs_between(strip_days[0].isoformat(), today.isoformat()), strip_days)
+    feelings = store.get_wake_feelings(days[0].isoformat(), today.isoformat())
+    all_feelings = store.get_wake_feelings("2000-01-01", today.isoformat())
+    slip_days = {e._day(l["date"]) for l in quit_logs if e.kind(l) == "quit" and e._text(l.get("tag")) == "master"}
     return {
         "today": today.isoformat(),
         "weeks": weeks,
         "days": [d.isoformat() for d in days],
         "habits": h.habit_grid(logs, days, extra),
-        "wellbeing": h.wellbeing_rows(logs, days),
+        "wellbeing": [h.feeling_row(feelings, days)] + h.wellbeing_rows(logs, days),
+        "feeling": {"today": feelings.get(today.isoformat()), "ratings": feelings,
+                    "by_run": h.feeling_by_run(all_feelings, slip_days, MIN_NIGHTS)},
         "quit": {"card": h.quit_card(summary, strip, today), "strip": strip},
         "catalog": catalog(),
     }
+
+
+class FeelingBody(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    date: str | None = None
+
+
+@router.post("/feeling")
+def set_feeling(body: FeelingBody) -> dict:
+    """Rate how you woke up. The date can be a past day (not a future one)."""
+    today = quality.today()
+    try:
+        day = today if body.date is None else date.fromisoformat(body.date)
+    except ValueError as exc:
+        raise HTTPException(422, "Use a date like 2026-10-13.") from exc
+    if day > today:
+        raise HTTPException(422, "That day hasn't happened yet.")
+    if day < today - timedelta(days=366):
+        raise HTTPException(422, "That's more than a year back.")
+    store.save_checkin_answer(day.isoformat(), "wake_feeling", body.rating)
+    return {"date": day.isoformat(), "rating": body.rating}
 
 
 @router.get("/catalog")

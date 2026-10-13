@@ -76,6 +76,48 @@ def quit_strip(logs: list[dict], days: list[date]) -> list[dict]:
     return cells
 
 
+def feeling_row(feelings: dict[str, int], days: list[date]) -> dict:
+    """How you rated waking up, per day. An unrated day is "unknown", never a neutral 3."""
+    cells, values = [], []
+    for day in days:
+        iso = day.isoformat()
+        value = feelings.get(iso)
+        if value is None:
+            cells.append({"date": iso, "state": "unknown"})
+            continue
+        values.append(value)
+        cells.append({"date": iso, "state": "logged", "value": value, "level": min(5, max(1, value))})
+    return {"tag": "wake", "label": "Waking feeling", "cells": cells,
+            "average": sum(values) / len(values) if values else None, "count": len(values)}
+
+
+RUN_BUCKETS = [(0, 0, "Slip day"), (1, 2, "1 to 2 days after"), (3, 6, "3 to 6 days"),
+               (7, 13, "1 to 2 weeks"), (14, None, "2 weeks or more")]
+
+
+def feeling_by_run(feelings: dict[str, int], slip_days: set[date], needed: int) -> dict:
+    """Average waking feeling by days since the last slip. A day before any recorded slip is left out
+    (there is no run to measure it against). A bucket only counts once it has `needed` rated days."""
+    slips = sorted(slip_days)
+    buckets = [{"label": label, "min": lo, "max": hi, "n": 0, "total": 0} for lo, hi, label in RUN_BUCKETS]
+    placed = 0
+    for iso, value in feelings.items():
+        day = date.fromisoformat(iso)
+        last = max((s for s in slips if s <= day), default=None)
+        if last is None:
+            continue
+        since = (day - last).days
+        for b in buckets:
+            if since >= b["min"] and (b["max"] is None or since <= b["max"]):
+                b["n"] += 1
+                b["total"] += value
+                placed += 1
+                break
+    rows = [{"label": b["label"], "n": b["n"], "mean": round(b["total"] / b["n"], 2) if b["n"] else None,
+             "enough": b["n"] >= needed} for b in buckets]
+    return {"rows": rows, "rated_days": len(feelings), "placed": placed, "needed": needed}
+
+
 def wellbeing_rows(logs: list[dict], days: list[date]) -> list[dict]:
     logged_days = {e._day(l["date"]) for l in logs}
     rows = []

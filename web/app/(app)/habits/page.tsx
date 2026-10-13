@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { ApiDown } from "@/components/ApiDown";
 import { HabitGrid, Legend, WellbeingGrid } from "@/components/HabitGrid";
 import { HabitManager } from "@/components/HabitManager";
+import { FeelingByRun } from "@/components/FeelingByRun";
 import { QuitCard } from "@/components/QuitCard";
+import { WakeFeeling } from "@/components/WakeFeeling";
 import { apiGet } from "@/lib/api";
 import type { HabitsResponse } from "@/lib/habits";
 import { shortDay } from "@/lib/journal";
@@ -46,6 +48,21 @@ export default async function HabitsPage({ searchParams }: { searchParams: Promi
 
       <QuitCard card={d.quit.card} strip={d.quit.strip} />
 
+      <section className="card kind-checkin grid gap-4 p-5 sm:p-6">
+        <div>
+          <h2 className="font-display text-xl font-semibold">How did you wake up?</h2>
+          <p className="mt-1 text-sm text-ink-2">
+            One tap a morning, before the watch numbers. Over time it shows how you feel on a slip day, the days after,
+            and deep into a run.
+          </p>
+        </div>
+        <WakeFeeling today={d.today} ratings={d.feeling.ratings} />
+        <div className="grid gap-2 border-t border-line pt-4">
+          <h3 className="font-medium">Waking feeling by days since a slip</h3>
+          <FeelingByRun data={d.feeling.by_run} />
+        </div>
+      </section>
+
       <section className="card kind-habit grid gap-4 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-xl font-semibold">Sleep disruptors</h2>
@@ -66,7 +83,7 @@ export default async function HabitsPage({ searchParams }: { searchParams: Promi
 
       <section className="card kind-checkin grid gap-4 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-xl font-semibold">Mood and energy</h2>
+          <h2 className="font-display text-xl font-semibold">Waking feeling, mood and energy</h2>
           <Legend
             items={[
               { cls: "cell cell-s1", text: "1" },

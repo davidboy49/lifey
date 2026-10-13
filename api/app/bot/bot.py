@@ -32,7 +32,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 import asyncio
 
-from app import money
+from app import money, reminders
 from app.bot import analytics, anomaly as anomaly_detector, checkin, coaching, quit_tracker, reports, training_plan
 from app.bot import store as db
 from app.health import quality
@@ -739,6 +739,25 @@ async def habit_checkin(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=AUTHORIZED_CHAT_ID, text=text, reply_markup=markup, parse_mode="HTML")
 
 
+REMINDER_JOBS = {}   # filled below, once both coroutines exist
+
+
+async def reminder_tick(context: ContextTypes.DEFAULT_TYPE):
+    """Once a minute: send whichever web-configured reminders have come due."""
+    now = datetime.now(quality.user_timezone())
+    try:
+        names = await asyncio.to_thread(reminders.due, now)
+    except Exception as e:
+        logger.warning(f"Reminder check failed: {e}")
+        return
+    for name in names:
+        await asyncio.to_thread(reminders.mark_sent, name, now.date().isoformat())   # first, so it never repeats
+        try:
+            await REMINDER_JOBS[name](context)
+        except Exception as e:
+            logger.warning(f"Reminder {name} failed: {e}")
+
+
 async def morning_feeling(context: ContextTypes.DEFAULT_TYPE):
     """Ask how you woke up; skipped when today is already rated. One message, no reminder."""
     today = quality.today().isoformat()
@@ -747,6 +766,9 @@ async def morning_feeling(context: ContextTypes.DEFAULT_TYPE):
         return
     await context.bot.send_message(chat_id=AUTHORIZED_CHAT_ID, text=checkin.FEELING_TEXT,
                                    reply_markup=checkin.feeling_keyboard(today), parse_mode="HTML")
+
+
+REMINDER_JOBS.update({"morning_feeling": morning_feeling})
 
 
 async def feeling_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -772,6 +794,9 @@ async def feeling_answer(query, data: str) -> None:
     await asyncio.to_thread(db.save_checkin_answer, day, "wake_feeling", rating)
     await query.edit_message_text(f"☀️ Waking feeling saved: <b>{checkin.FEELING_NAMES[rating]}</b> · {day}",
                                   parse_mode="HTML")
+
+
+REMINDER_JOBS.update({"evening_checkin": habit_checkin})
 
 
 async def checkin_answer(query, data: str) -> None:
@@ -1371,23 +1396,8 @@ async def post_init(app: Application):
             continue
         app.job_queue.run_daily(job, at, name=job.__name__)
 
-    feeling_time = os.environ.get("MORNING_FEELING_TIME", "06:55").strip()
-    if feeling_time.lower() != "off":
-        try:
-            hour, minute = (int(x) for x in feeling_time.split(":"))
-            app.job_queue.run_daily(morning_feeling, dtime(hour, minute, tzinfo=quality.user_timezone()),
-                                    name="morning_feeling")
-        except ValueError:
-            logger.warning(f"MORNING_FEELING_TIME={feeling_time!r} is not HH:MM; the waking rating is disabled.")
-
-    habit_time = os.environ.get("HABIT_CHECKIN_TIME", "22:00").strip()
-    if habit_time.lower() != "off":
-        try:
-            hour, minute = (int(x) for x in habit_time.split(":"))
-            app.job_queue.run_daily(habit_checkin, dtime(hour, minute, tzinfo=quality.user_timezone()),
-                                    name="habit_checkin")
-        except ValueError:
-            logger.warning(f"HABIT_CHECKIN_TIME={habit_time!r} is not HH:MM; the evening check-in is disabled.")
+    # The morning feeling and the evening check-in follow the settings on the web (Settings page).
+    app.job_queue.run_repeating(reminder_tick, interval=60, first=15, name="reminder_tick")
 
     review_time = os.environ.get("WEEKLY_REVIEW_TIME", "19:00").strip()
     if review_time.lower() != "off":
