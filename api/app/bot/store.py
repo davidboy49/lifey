@@ -264,7 +264,8 @@ def get_activity_logs_between(start: str, end: str) -> list[dict]:
 
 # ---------- evening check-in ----------
 
-CHECKIN_COLUMNS = {"alcohol_units": float, "late_caffeine": bool, "late_meal": bool, "rpe": int}
+CHECKIN_COLUMNS = {"alcohol_units": float, "late_caffeine": bool, "late_meal": bool, "rpe": int,
+                   "wake_feeling": int}
 
 
 def save_checkin_answer(date_str: str, field: str, value) -> None:
@@ -282,7 +283,7 @@ def save_checkin_answer(date_str: str, field: str, value) -> None:
 
 
 def get_checkin(date_str: str) -> dict | None:
-    rows = _rows("SELECT date::text AS date, alcohol_units, late_caffeine, late_meal, rpe "
+    rows = _rows("SELECT date::text AS date, alcohol_units, late_caffeine, late_meal, rpe, wake_feeling "
                  "FROM journal.checkins WHERE date = %(d)s", {"d": date_str})
     if not rows:
         return None
@@ -290,3 +291,10 @@ def get_checkin(date_str: str) -> dict | None:
     if row.get("alcohol_units") is not None:
         row["alcohol_units"] = float(row["alcohol_units"])
     return row
+
+
+def get_wake_feelings(start: str, end: str) -> dict[str, int]:
+    """{date: 1..5} for the days in start..end that were rated. Unrated days are absent."""
+    rows = _rows("SELECT date::text AS date, wake_feeling FROM journal.checkins "
+                 "WHERE date >= %(a)s AND date <= %(b)s AND wake_feeling IS NOT NULL", {"a": start, "b": end})
+    return {r["date"]: int(r["wake_feeling"]) for r in rows}

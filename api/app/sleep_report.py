@@ -182,7 +182,7 @@ def weekend_split(nights: list[dict]) -> dict:
 
 
 def outcomes(nights: list[dict], mood_by_day: dict[str, float], trained_days: set[str],
-             target: float = SLEEP_TARGET_H) -> dict:
+             target: float = SLEEP_TARGET_H, feeling_by_day: dict[str, float] | None = None) -> dict:
     """How the days after short and adequate nights looked, in this person's own data.
 
     Same-morning physiology (HRV, resting heart rate) and how the day went (mood, steps,
@@ -200,6 +200,10 @@ def outcomes(nights: list[dict], mood_by_day: dict[str, float], trained_days: se
         vals = [mood_by_day[n["date"]] for n in group if n["date"] in mood_by_day]
         return (round(fmean(vals), 2), len(vals)) if vals else (None, 0)
 
+    def feeling(group):
+        vals = [feeling_by_day[n["date"]] for n in group if feeling_by_day and n["date"] in feeling_by_day]
+        return (round(fmean(vals), 2), len(vals)) if vals else (None, 0)
+
     def trained(group):
         return (round(100 * sum(1 for n in group if n["date"] in trained_days) / len(group)), len(group)) if group else (None, 0)
 
@@ -208,6 +212,7 @@ def outcomes(nights: list[dict], mood_by_day: dict[str, float], trained_days: se
         ("HRV that night", "ms", avg(below, "hrv"), avg(above, "hrv"), "higher"),
         ("Resting heart rate", "bpm", avg(below, "resting_hr"), avg(above, "resting_hr"), "lower"),
         ("Steps that day", "", avg(below, "steps"), avg(above, "steps"), "higher"),
+        ("How you felt waking up (1 to 5)", "", feeling(below), feeling(above), "higher"),
         ("Mood that day (1 to 5)", "", mood(below), mood(above), "higher"),
         ("Days with a training session", "%", trained(below), trained(above), "higher"),
     ]:

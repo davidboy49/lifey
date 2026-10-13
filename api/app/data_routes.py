@@ -95,11 +95,12 @@ DATASETS: dict[str, dict] = {
     },
     "checkins": {
         "label": "Evening check-ins",
-        "sql": """SELECT date::text AS date, alcohol_units, late_caffeine, late_meal, rpe, answered_at
+        "sql": """SELECT date::text AS date, wake_feeling, alcohol_units, late_caffeine, late_meal, rpe, answered_at
                   FROM journal.checkins""",
         "order": "date",
         "count": "SELECT count(*) FROM journal.checkins",
-        "columns": [("date", "Date", "date"), ("alcohol_units", "Alcohol (drinks)", "number"),
+        "columns": [("date", "Date", "date"), ("wake_feeling", "Waking feeling (1-5)", "number"),
+                    ("alcohol_units", "Alcohol (drinks)", "number"),
                     ("late_caffeine", "Late caffeine", "chip"), ("late_meal", "Late meal", "chip"),
                     ("rpe", "Workout effort (0 = none)", "number"), ("answered_at", "Answered", "time")],
         "default_hidden": [],

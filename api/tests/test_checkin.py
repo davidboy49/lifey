@@ -80,3 +80,42 @@ def test_summary_text_reads_naturally():
     text = checkin.summary({"alcohol_units": 0.0, "late_caffeine": True, "late_meal": None, "rpe": 6})
     assert "Alcohol: None" in text and "Late caffeine: Yes" in text and "Workout: Medium" in text
     assert "Late meal" not in text
+
+
+# ---------- how you woke up ----------
+
+def test_feeling_callbacks_are_validated():
+    assert checkin.parse_feeling("mf:2026-10-13:4") == ("2026-10-13", 4)
+    assert checkin.parse_feeling("mf:2026-10-13:6") is None
+    assert checkin.parse_feeling("mf:2026-10-13:x") is None
+    assert checkin.parse_feeling("ci:2026-10-13:rpe:3") is None
+    row = checkin.feeling_keyboard("2026-10-13").inline_keyboard[0]
+    assert [b.callback_data.rsplit(":", 1)[1] for b in row] == ["1", "2", "3", "4", "5"]
+
+
+def test_rating_does_not_count_as_the_evening_check_in(pg):
+    today = quality.today().isoformat()
+    q = _query(f"mf:{today}:4")
+    asyncio.run(bot.feeling_answer(q, q.data))
+    assert db.get_checkin(today)["wake_feeling"] == 4
+    assert db.get_checkin(today)["alcohol_units"] is None
+    sent = SimpleNamespace(send_message=AsyncMock())
+    asyncio.run(bot.habit_checkin(SimpleNamespace(bot=sent)))   # evening questions still due
+    assert sent.send_message.await_count == 1
+    assert "saved" in q.edit_message_text.call_args.args[0]
+
+
+def test_feeling_command_sets_today_and_rejects_nonsense(pg, monkeypatch):
+    monkeypatch.setattr(bot, "AUTHORIZED_CHAT_ID", "123")
+    message = SimpleNamespace(reply_text=AsyncMock())
+    update = SimpleNamespace(effective_chat=SimpleNamespace(id=123), message=message, callback_query=None)
+    asyncio.run(bot.feeling_command(update, SimpleNamespace(args=["2"])))
+    assert db.get_checkin(quality.today().isoformat())["wake_feeling"] == 2
+    asyncio.run(bot.feeling_command(update, SimpleNamespace(args=["9"])))
+    assert "Usage" in message.reply_text.call_args.args[0]
+
+
+def test_feelings_by_day_only_include_rated_days(pg):
+    db.save_checkin_answer("2026-10-10", "wake_feeling", 5)
+    db.save_checkin_answer("2026-10-11", "rpe", 3)
+    assert db.get_wake_feelings("2026-10-09", "2026-10-12") == {"2026-10-10": 5}

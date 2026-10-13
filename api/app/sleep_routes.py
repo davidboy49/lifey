@@ -47,7 +47,8 @@ def sleep_overview() -> dict:
     debt = sr.debt(nights)
     reg = sr.regularity(nights)
     weekend = sr.weekend_split(nights)
-    outcomes = sr.outcomes(nights, mood_by_day, trained_days)
+    feelings = store.get_wake_feelings(start, today.isoformat())
+    outcomes = sr.outcomes(nights, mood_by_day, trained_days, feeling_by_day=feelings)
 
     need = None
     for n in reversed(nights):

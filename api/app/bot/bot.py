@@ -170,6 +170,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📈 /recover - Recorded recovery observations\n"
         "📝 /week - Latest AI coaching weekly summary\n"
         "📋 /actionplan - Latest forward-looking action plan & watch-list\n"
+        "☀️ /feeling - Rate how you woke up, 1 to 5 (`/feeling 4`)\n"
         "📦 /export - Daily metrics, journal & habits as CSV (`/export 30` or `/export all`)\n"
         "❓ /status - Quick biometric readiness update\n\n"
         "💡 *Tip: You can also send me any plain text message to log a quick Free Note!*"
@@ -731,10 +732,46 @@ async def nightly_checkin(context: ContextTypes.DEFAULT_TYPE):
 async def habit_checkin(context: ContextTypes.DEFAULT_TYPE):
     """Evening questions about the day; skipped when today already has answers."""
     today = quality.today().isoformat()
-    if await asyncio.to_thread(db.get_checkin, today):
+    row = await asyncio.to_thread(db.get_checkin, today)
+    if row and any(row.get(f) is not None for f in checkin.FIELDS):   # the morning rating alone doesn't count
         return
     text, markup = checkin.question(today, 0)
     await context.bot.send_message(chat_id=AUTHORIZED_CHAT_ID, text=text, reply_markup=markup, parse_mode="HTML")
+
+
+async def morning_feeling(context: ContextTypes.DEFAULT_TYPE):
+    """Ask how you woke up; skipped when today is already rated. One message, no reminder."""
+    today = quality.today().isoformat()
+    row = await asyncio.to_thread(db.get_checkin, today)
+    if row and row.get("wake_feeling") is not None:
+        return
+    await context.bot.send_message(chat_id=AUTHORIZED_CHAT_ID, text=checkin.FEELING_TEXT,
+                                   reply_markup=checkin.feeling_keyboard(today), parse_mode="HTML")
+
+
+async def feeling_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await check_auth(update, context):
+        return
+    target = reply_target(update)
+    today = quality.today().isoformat()
+    if context.args:
+        if context.args[0] not in {"1", "2", "3", "4", "5"}:
+            await target.reply_text("Usage: /feeling [1-5]   (1 awful, 5 great)")
+            return
+        await asyncio.to_thread(db.save_checkin_answer, today, "wake_feeling", int(context.args[0]))
+        await target.reply_text(f"☀️ Waking feeling saved: {checkin.FEELING_NAMES[int(context.args[0])]}")
+        return
+    await target.reply_text(checkin.FEELING_TEXT, reply_markup=checkin.feeling_keyboard(today), parse_mode="HTML")
+
+
+async def feeling_answer(query, data: str) -> None:
+    parsed = checkin.parse_feeling(data)
+    if not parsed:
+        return
+    day, rating = parsed
+    await asyncio.to_thread(db.save_checkin_answer, day, "wake_feeling", rating)
+    await query.edit_message_text(f"☀️ Waking feeling saved: <b>{checkin.FEELING_NAMES[rating]}</b> · {day}",
+                                  parse_mode="HTML")
 
 
 async def checkin_answer(query, data: str) -> None:
@@ -999,6 +1036,10 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             handler = COMMANDS.get(data[len("cmd:"):])
             if handler:
                 await handler(update, context)
+            return
+
+        if data.startswith("mf:"):
+            await feeling_answer(query, data)
             return
 
         if data.startswith("ci:"):
@@ -1272,6 +1313,7 @@ COMMANDS = {
     "week": week_command,
     "actionplan": actionplan_command,
     "export": export_command,
+    "feeling": feeling_command,
 }
 
 # Shown in Telegram's "Menu" button next to the text box.
@@ -1298,6 +1340,7 @@ BOT_COMMANDS = [
     BotCommand("week", "Latest weekly recap"),
     BotCommand("actionplan", "Latest action plan"),
     BotCommand("export", "Export metrics, journal & habits as CSV"),
+    BotCommand("feeling", "Rate how you woke up: /feeling 1-5"),
     BotCommand("start", "Welcome & keyboard"),
 ]
 
@@ -1327,6 +1370,15 @@ async def post_init(app: Application):
             logger.warning(f"{env}={value!r} is not HH:MM; that broadcast is disabled.")
             continue
         app.job_queue.run_daily(job, at, name=job.__name__)
+
+    feeling_time = os.environ.get("MORNING_FEELING_TIME", "06:55").strip()
+    if feeling_time.lower() != "off":
+        try:
+            hour, minute = (int(x) for x in feeling_time.split(":"))
+            app.job_queue.run_daily(morning_feeling, dtime(hour, minute, tzinfo=quality.user_timezone()),
+                                    name="morning_feeling")
+        except ValueError:
+            logger.warning(f"MORNING_FEELING_TIME={feeling_time!r} is not HH:MM; the waking rating is disabled.")
 
     habit_time = os.environ.get("HABIT_CHECKIN_TIME", "22:00").strip()
     if habit_time.lower() != "off":
@@ -1384,6 +1436,7 @@ def main():
     app.add_handler(CommandHandler("spo2", spo2_command))
     app.add_handler(CommandHandler("sync", sync_command))
     app.add_handler(CommandHandler("export", export_command))
+    app.add_handler(CommandHandler("feeling", feeling_command))
     
     # Inline buttons callback handler
     app.add_handler(CallbackQueryHandler(callback_query_handler))

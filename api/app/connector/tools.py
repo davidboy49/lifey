@@ -130,6 +130,12 @@ def checkins(days: int = 30) -> dict:
         "alcohol": {"days_asked": len(answered["alcohol_units"]),
                     "days_with_alcohol": sum(1 for r in answered["alcohol_units"] if r["alcohol_units"] > 0),
                     "total_drinks": round(sum(r["alcohol_units"] for r in answered["alcohol_units"]), 1)},
+        "waking_feeling": {
+            "days_rated": len([r for r in found if r.get("wake_feeling") is not None]),
+            "mean": (round(mean(r["wake_feeling"] for r in found if r.get("wake_feeling") is not None), 2)
+                     if any(r.get("wake_feeling") is not None for r in found) else None),
+            "scale": "1 awful to 5 great, rated on waking before looking at the watch",
+        },
         "late_caffeine_days": sum(1 for r in answered["late_caffeine"] if r["late_caffeine"]),
         "late_meal_days": sum(1 for r in answered["late_meal"] if r["late_meal"]),
         "workouts": {"days_asked": len(answered["rpe"]),

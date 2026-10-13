@@ -70,3 +70,23 @@ def summary(row: dict | None) -> str:
                 "rpe": "Workout"}[field]
         lines.append(f"• {name}: {label}")
     return "\n".join(lines) or "Nothing recorded."
+
+
+# ---- how you felt on waking: one tap, asked before the day's numbers are in ----
+
+FEELINGS = [(1, "😫", "Awful"), (2, "😕", "Rough"), (3, "😐", "Okay"), (4, "🙂", "Good"), (5, "😄", "Great")]
+FEELING_NAMES = {n: f"{icon} {name}" for n, icon, name in FEELINGS}
+FEELING_TEXT = "☀️ <b>How did you wake up?</b>\n\nTap before you look at your watch."
+
+
+def feeling_keyboard(day: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[InlineKeyboardButton(f"{icon} {n}", callback_data=f"mf:{day}:{n}")
+                                  for n, icon, _ in FEELINGS]])
+
+
+def parse_feeling(data: str) -> tuple[str, int] | None:
+    """`mf:<date>:<1-5>` -> (date, rating), or None if malformed."""
+    parts = data.split(":")
+    if len(parts) != 3 or parts[0] != "mf" or len(parts[1]) != 10 or parts[2] not in {"1", "2", "3", "4", "5"}:
+        return None
+    return parts[1], int(parts[2])
