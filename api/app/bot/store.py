@@ -134,8 +134,18 @@ def delete_training_logs(date_str: str) -> int:
 
 
 def delete_activity_log(log_id: int) -> bool:
+    from app import attachments
     with database.connect() as conn:
+        names = attachments.file_names_for_log(conn, log_id)
         n = conn.execute("DELETE FROM journal.activity_logs WHERE id=%s", (log_id,)).rowcount
+        conn.commit()
+    attachments.remove_files(names)
+    return n > 0
+
+
+def set_log_date(log_id: int, date_str: str) -> bool:
+    with database.connect() as conn:
+        n = conn.execute("UPDATE journal.activity_logs SET date=%s WHERE id=%s", (date_str, log_id)).rowcount
         conn.commit()
         return n > 0
 

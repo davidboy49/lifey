@@ -1,10 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, shortDay } from "@/lib/journal";
 
 type Kind = "habit" | "quit" | "checkin" | "note";
+
+const MAX_FILE = 10 * 1024 * 1024;
+const MAX_FILES = 6;
+const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
+
+function fileSize(bytes: number): string {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 const KINDS: { key: Kind; label: string }[] = [
   { key: "habit", label: "Habit" },
@@ -76,6 +84,8 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
   const [ago, setAgo] = useState<0 | 1 | 2 | "pick">(0);
   const [picked, setPicked] = useState(today);
   const [time, setTime] = useState(nowTime);
+  const [files, setFiles] = useState<File[]>([]);
+  const picker = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ text: string; ids: number[] } | null>(null);
@@ -107,7 +117,7 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
 
   function validate(): string | null {
     if (isHabit && !habitName) return "Name the habit first.";
-    if (kind === "note" && !note.trim()) return "Write the note first.";
+    if (kind === "note" && !note.trim() && files.length === 0) return "Write the note first, or attach a file.";
     if (kind === "checkin" && mood === null && energy === null) return "Pick a mood or an energy level.";
     if (day > today) return "That date is in the future.";
     return null;
@@ -120,19 +130,46 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/journal", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload()),
-      });
+      const withFiles = kind === "note" && files.length > 0;
+      let res: Response;
+      if (withFiles) {
+        const form = new FormData();
+        form.append("files", files[0]);
+        form.append("note", note.trim());
+        form.append("date", day);
+        form.append("time", time);
+        res = await fetch("/api/attachments", { method: "POST", body: form });
+      } else {
+        res = await fetch("/api/journal", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload()),
+        });
+      }
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(typeof body.detail === "string" ? body.detail : "Couldn’t save that entry. Check the fields and try again.");
         return;
       }
+      let extraProblem: string | null = null;
+      if (withFiles && files.length > 1) {
+        // One request per extra file keeps each upload under the server's body limit.
+        for (const f of files.slice(1)) {
+          const form = new FormData();
+          form.append("files", f);
+          const more = await fetch(`/api/attachments/${body.ids[0]}`, { method: "POST", body: form });
+          if (!more.ok) {
+            const b = await more.json().catch(() => ({}));
+            extraProblem = typeof b.detail === "string" ? b.detail : `${f.name} couldn’t be attached.`;
+          }
+        }
+      }
+      if (extraProblem) setError(extraProblem);
       const label = kind === "habit" ? habitName : kind === "quit" ? QUIT.find((q) => q.key === action)!.label : kind === "checkin" ? "Check-in" : "Note";
       setSaved({ text: `Saved ${label} for ${shortDay(body.date)} at ${body.time}.`, ids: body.ids });
       setNote("");
+      setFiles([]);
+      if (picker.current) picker.current.value = "";
       setMood(null);
       setEnergy(null);
       router.refresh();
@@ -258,6 +295,58 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
               placeholder={kind === "note" ? "Write it down while you remember it" : "Anything you want to remember about it"}
             />
           </label>
+
+          {kind === "note" && (
+            <div className="grid gap-2">
+              <input
+                ref={picker}
+                type="file"
+                multiple
+                accept={ACCEPT}
+                className="sr-only"
+                id="attach"
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files ?? []);
+                  const tooBig = picked.find((f) => f.size > MAX_FILE);
+                  if (tooBig) {
+                    setError(`${tooBig.name} is larger than 10 MB.`);
+                    e.target.value = "";
+                    return;
+                  }
+                  setError(null);
+                  setFiles((prev) => [...prev, ...picked].slice(0, MAX_FILES));
+                  e.target.value = "";
+                }}
+              />
+              <label
+                htmlFor="attach"
+                className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-line bg-raised px-3.5 py-2 text-sm font-medium text-ink-2 hover:text-ink"
+              >
+                <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="m21 11-8.6 8.6a5 5 0 0 1-7-7l9-9a3.5 3.5 0 0 1 5 5l-9 9a2 2 0 0 1-3-3l8-8" />
+                </svg>
+                Attach photo or PDF
+              </label>
+              {files.length > 0 && (
+                <ul className="grid gap-1.5" aria-label="Attached files">
+                  {files.map((f, i) => (
+                    <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-panel px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate">{f.name}<span className="text-ink-3"> · {fileSize(f.size)}</span></span>
+                      <button
+                        type="button"
+                        onClick={() => setFiles((all) => all.filter((_, j) => j !== i))}
+                        aria-label={`Remove ${f.name}`}
+                        className="text-ink-3 hover:text-alert"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-xs text-ink-3">Photos and PDFs, up to 10 MB each. Location data is removed from photos.</p>
+            </div>
+          )}
 
           <p role="alert" aria-live="polite" className={error ? "rounded-xl bg-alert-soft px-3.5 py-2.5 text-sm text-alert" : "sr-only"}>{error}</p>
 

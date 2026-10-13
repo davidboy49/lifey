@@ -32,7 +32,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 import asyncio
 
-from app import money, reminders
+from app import attachments, backup_status, money, reminders
 from app.bot import analytics, anomaly as anomaly_detector, checkin, coaching, quit_tracker, reports, training_plan
 from app.bot import store as db
 from app.health import quality
@@ -750,12 +750,30 @@ async def reminder_tick(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.warning(f"Reminder check failed: {e}")
         return
+    if now.hour >= 9 and now.minute == 0:      # hourly, from 9am: one alert a day at most
+        try:
+            await backup_watch(context)
+        except Exception as e:
+            logger.warning(f"Backup check failed: {e}")
     for name in names:
         await asyncio.to_thread(reminders.mark_sent, name, now.date().isoformat())   # first, so it never repeats
         try:
             await REMINDER_JOBS[name](context)
         except Exception as e:
             logger.warning(f"Reminder {name} failed: {e}")
+
+
+async def backup_watch(context: ContextTypes.DEFAULT_TYPE):
+    """Tell the owner once a day when the off-box backup needs attention."""
+    state = await asyncio.to_thread(backup_status.status)
+    if not state["needs_attention"] or state["state"] == "never":
+        return
+    if not await asyncio.to_thread(reminders.claim_daily, "backup_alert", quality.today().isoformat()):
+        return
+    text = f"⚠️ <b>Backup needs attention</b>\n{html.escape(state['headline'])}"
+    if state.get("hint"):
+        text += f"\n{html.escape(state['hint'])}"
+    await context.bot.send_message(chat_id=AUTHORIZED_CHAT_ID, text=text, parse_mode="HTML")
 
 
 async def morning_feeling(context: ContextTypes.DEFAULT_TYPE):
@@ -846,6 +864,72 @@ async def weekly_review_nudge(context: ContextTypes.DEFAULT_TYPE):
               + ("" if base else "\n\n<i>Set WEB_URL to get a link here.</i>")),
         reply_markup=markup, parse_mode="HTML",
     )
+
+
+ATTACH_DAYS = (("Yesterday", 1), ("2 days ago", 2), ("3 days ago", 3))
+
+
+async def attachment_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """A photo or file sent to the bot becomes a journal entry; the caption is the note."""
+    if not await check_auth(update, context):
+        return
+    message = update.message
+    if not message:
+        return
+    if message.photo:
+        item, name = message.photo[-1], None          # the largest size Telegram made
+    elif message.document:
+        item, name = message.document, message.document.file_name
+    else:
+        return
+    if item.file_size and item.file_size > attachments.MAX_BYTES:
+        await message.reply_text("That file is larger than 10 MB, so it wasn't saved.")
+        return
+    try:
+        tg_file = await item.get_file()
+        data = bytes(await tg_file.download_as_bytearray())
+        prepared = await asyncio.to_thread(attachments.prepare, data, name)
+    except attachments.Rejected as exc:
+        await message.reply_text(f"Not saved: {exc}")
+        return
+    except Exception as exc:
+        logger.warning(f"Attachment download failed: {exc}")
+        await message.reply_text("Couldn't fetch that file from Telegram. Try sending it again.")
+        return
+
+    today = quality.today().isoformat()
+    log_id = await asyncio.to_thread(db.log_activity, date_str=today, category="free_note", tag="note",
+                                     note=(message.caption or "").strip()[:2000])
+    try:
+        saved = await asyncio.to_thread(attachments.save, log_id, prepared)
+    except attachments.Rejected as exc:
+        await asyncio.to_thread(db.delete_activity_log, log_id)
+        await message.reply_text(f"Not saved: {exc}")
+        return
+    size = f"{saved['bytes'] / 1024 / 1024:.1f} MB" if saved["bytes"] >= 1024 * 1024 else f"{saved['bytes'] // 1024} KB"
+    extra = "" if prepared["mime"] == attachments.PDF_MIME else ", location data removed"
+    day_row = [InlineKeyboardButton(label, callback_data=f"attday:{log_id}:{n}") for label, n in ATTACH_DAYS]
+    await message.reply_text(
+        f"📎 <b>Saved to your journal</b>\n{html.escape(saved['filename'])} · {size}{extra}\n"
+        f"<code>{today}</code>" + (f"\n<i>{html.escape(message.caption.strip()[:200])}</i>" if message.caption else ""),
+        reply_markup=undo_keyboard(log_id, day_row), parse_mode="HTML")
+
+
+async def attachment_day(query, data: str) -> None:
+    """`attday:<log_id>:<days_ago>`: move a just-saved attachment entry to an earlier day."""
+    try:
+        _, log_id, days_ago = data.split(":")
+        log_id, days_ago = int(log_id), int(days_ago)
+    except ValueError:
+        return
+    if not 1 <= days_ago <= 7:
+        return
+    day = (quality.today() - timedelta(days=days_ago)).isoformat()
+    if await asyncio.to_thread(db.set_log_date, log_id, day):
+        await query.edit_message_reply_markup(reply_markup=undo_keyboard(log_id))
+        await query.message.reply_text(f"📅 Moved to {day}.")
+    else:
+        await query.message.reply_text("That entry is gone.")
 
 
 async def xlsx_statement_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1061,6 +1145,10 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             handler = COMMANDS.get(data[len("cmd:"):])
             if handler:
                 await handler(update, context)
+            return
+
+        if data.startswith("attday:"):
+            await attachment_day(query, data)
             return
 
         if data.startswith("mf:"):
@@ -1450,6 +1538,8 @@ def main():
     
     # Inline buttons callback handler
     app.add_handler(CallbackQueryHandler(callback_query_handler))
+    app.add_handler(MessageHandler(filters.PHOTO | (filters.Document.ALL & ~filters.Document.FileExtension("xlsx")),
+                                   attachment_handler))
 
     async def on_error(update, context):
         # Telegram's side hiccups (Bad Gateway, timeouts) are retried by polling; just note them.

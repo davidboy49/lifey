@@ -17,6 +17,8 @@ from .health import read, sync as garmin_sync
 from .data_routes import router as data_router
 from .sleep_routes import router as sleep_router
 from .settings_routes import router as settings_router
+from .attachment_routes import router as attachments_router
+from .backup_routes import router as backups_router
 from .journal.habit_routes import router as habits_router
 from .journal.review_routes import router as review_router
 from .journal.routes import router as journal_router
@@ -65,6 +67,8 @@ app.include_router(review_router)
 app.include_router(data_router)
 app.include_router(sleep_router)
 app.include_router(settings_router)
+app.include_router(attachments_router)
+app.include_router(backups_router)
 if connector_app is not None:
     from .connector.login import router as connector_login_router
 

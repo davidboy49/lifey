@@ -8,6 +8,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
+from .. import attachments
 from ..auth.deps import current_user
 from ..bot import quit_tracker, store
 from ..health import quality
@@ -60,6 +61,9 @@ def timeline(days: int = Query(7, ge=1, le=90), kind: str = Query("all")) -> dic
     logs = store.get_activity_logs_between(start.isoformat(), today.isoformat())
     wanted = entries.KIND_FILTERS[kind]
     shown = [e for e in entries.build_entries(logs) if wanted is None or e["kind"] in wanted]
+    files = attachments.for_logs([i for e in shown for i in e["ids"]])
+    for e in shown:
+        e["attachments"] = [a for i in e["ids"] for a in files.get(i, [])]
     groups = entries.day_groups(shown, start, today, show_gaps=wanted is None)
 
     today_logs = [l for l in logs if str(l["date"]) == today.isoformat()]
