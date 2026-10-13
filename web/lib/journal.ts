@@ -1,5 +1,15 @@
 export type EntryKind = "habit" | "quit" | "reason" | "checkin" | "training" | "note";
 
+export interface Attachment {
+  id: number;
+  filename: string;
+  mime: string;
+  bytes: number;
+  width: number | null;
+  height: number | null;
+  has_thumb: boolean;
+}
+
 export interface JournalEntry {
   date: string;
   kind: EntryKind;
@@ -11,6 +21,7 @@ export interface JournalEntry {
   time: string;
   time_recorded: boolean;
   recalled: boolean;
+  attachments?: Attachment[];
 }
 
 export type JournalGroup =

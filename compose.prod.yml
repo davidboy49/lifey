@@ -36,6 +36,7 @@ services:
     volumes:
       - /opt/sure_import:/opt/sure_import:ro
       - garmin:/data
+      - attachments:/data/attachments
     networks: [default, sure]
     ports:
       - "127.0.0.1:8101:8000"
@@ -58,6 +59,7 @@ services:
     command: ["python", "-m", "app.bot"]
     volumes:
       - /opt/sure_import:/opt/sure_import:ro
+      - attachments:/data/attachments
     networks: [default, sure]
     mem_limit: 384m
     depends_on:
@@ -112,3 +114,4 @@ networks:
 volumes:
   garmin:
   pgdata:
+  attachments:

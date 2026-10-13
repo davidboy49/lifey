@@ -89,6 +89,21 @@ def due(now: datetime) -> list[str]:
     return out
 
 
+def claim_daily(name: str, day: str) -> bool:
+    """True the first time it is called for `name` on `day`, False after that (survives restarts)."""
+    import json
+    with db.connect() as conn:
+        state = _read(conn, "reminder_state")
+        if state.get(name) == day:
+            return False
+        state[name] = day
+        conn.execute(
+            "INSERT INTO journal.settings (key, value) VALUES ('reminder_state', %s::jsonb) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()", (json.dumps(state),))
+        conn.commit()
+    return True
+
+
 def mark_sent(name: str, day: str) -> None:
     import json
     with db.connect() as conn:

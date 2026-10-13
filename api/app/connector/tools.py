@@ -83,7 +83,9 @@ def activities(days: int = 30) -> dict:
 def journal(days: int = DEFAULT_DAYS, kind: str | None = None) -> dict:
     """Journal entries, newest first. `kind`: note, habit, checkin, quit, training."""
     n = clamp_days(days)
+    from .. import attachments
     found = data_routes.rows("journal", n)
+    files = attachments.for_logs([r.get("id") for r in found])
     out, counts = [], Counter()
     for r in reversed(found):
         k = e.kind(r)
@@ -92,7 +94,8 @@ def journal(days: int = DEFAULT_DAYS, kind: str | None = None) -> dict:
             continue
         tag = e.habit_tag(r) if k == "habit" else r.get("tag")
         item = {"date": r["date"], "kind": k, "tag": tag, "note": r.get("note") or None, "value": r.get("value"),
-                "recalled_later": bool(r.get("recalled"))}
+                "recalled_later": bool(r.get("recalled")),
+                "attachments": [a["filename"] for a in files.get(r.get("id"), [])] or None}
         out.append({kk: v for kk, v in item.items() if v not in (None, "", False)} | {"date": r["date"], "kind": k})
     return {"window_days": n, "entries_in_window": len(found), "by_kind": dict(counts),
             "entries": out[:MAX_ROWS],
