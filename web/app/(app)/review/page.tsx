@@ -2,10 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ApiDown } from "@/components/ApiDown";
 import { HabitGrid } from "@/components/HabitGrid";
+import { QuestCard } from "@/components/QuestCard";
+import { QuestPicker } from "@/components/QuestPicker";
 import { ReviewReflection } from "@/components/ReviewReflection";
 import { apiGet } from "@/lib/api";
-import { hoursMinutes, type Review } from "@/lib/habits";
-import { shortDay } from "@/lib/journal";
+import { hoursMinutes, type QuestResponse, type Review } from "@/lib/habits";
+import { addDays, shortDay } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,11 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
   if (res.status !== "ok") return <ApiDown />;
   const r = res.data;
   const n = r.numbers;
+  // The quest this week was scored against, and the picker for the week the plan below is about.
+  const questNow = await apiGet<QuestResponse>(`/api/quest?week=${r.week_start}`);
+  const questNext = await apiGet<QuestResponse>(`/api/quest?week=${addDays(r.week_start, 7)}`);
+  const scored = questNow.status === "ok" ? questNow.data.quest : null;
+  const picker = questNext.status === "ok" && questNext.data.editable ? questNext.data : null;
 
   const sleepLine =
     n.sleep.avg_seconds !== null && n.sleep.prev_avg_seconds !== null
@@ -82,6 +89,8 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
           />
         </div>
       </section>
+
+      {scored && <QuestCard quest={scored} heading={r.is_current ? "This week’s quest" : "Quest that week"} />}
 
       {r.notes.length > 0 && (
         <section className="grid gap-3" aria-labelledby="rv-notes">
@@ -141,6 +150,13 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
         <h2 id="rv-reflect" className="eyebrow">Your reflection</h2>
         <ReviewReflection key={r.week_start} weekStart={r.week_start} initial={r.reflection} lastPlan={r.last_plan} />
       </section>
+
+      {picker && (
+        <section className="grid gap-3" aria-labelledby="rv-quest">
+          <h2 id="rv-quest" className="eyebrow">Quest</h2>
+          <QuestPicker key={picker.week_start} data={picker} />
+        </section>
+      )}
     </article>
   );
 }

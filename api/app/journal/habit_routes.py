@@ -16,6 +16,8 @@ from . import repo
 
 router = APIRouter(prefix="/api/habits", tags=["habits"], dependencies=[Depends(current_user)])
 
+COMEBACK_DAYS = 90      # how far back slip episodes are counted for the comeback line
+
 
 class NewHabit(BaseModel):
     label: str = Field(min_length=1, max_length=48)
@@ -50,6 +52,9 @@ def overview(weeks: int = Query(5, ge=1, le=26)) -> dict:
     quit_logs = store.get_quit_logs()
     summary = quit_tracker.summarize(quit_logs, today)
     strip = h.quit_strip(store.get_activity_logs_between(strip_days[0].isoformat(), today.isoformat()), strip_days)
+    long_days = [today - timedelta(days=i) for i in range(COMEBACK_DAYS - 1, -1, -1)]
+    long_strip = h.quit_strip(store.get_activity_logs_between(long_days[0].isoformat(), today.isoformat()), long_days)
+    back = h.comeback(long_strip)
     feelings = store.get_wake_feelings(days[0].isoformat(), today.isoformat())
     all_feelings = store.get_wake_feelings("2000-01-01", today.isoformat())
     slip_days = {e._day(l["date"]) for l in quit_logs if e.kind(l) == "quit" and e._text(l.get("tag")) == "master"}
@@ -61,7 +66,8 @@ def overview(weeks: int = Query(5, ge=1, le=26)) -> dict:
         "wellbeing": [h.feeling_row(feelings, days)] + h.wellbeing_rows(logs, days),
         "feeling": {"today": feelings.get(today.isoformat()), "ratings": feelings,
                     "by_run": h.feeling_by_run(all_feelings, slip_days, MIN_NIGHTS)},
-        "quit": {"card": h.quit_card(summary, strip, today), "strip": strip},
+        "quit": {"card": h.quit_card(summary, strip, today), "strip": strip,
+                 "comeback": {**back, "text": h.comeback_text(back)}},
         "catalog": catalog(),
     }
 

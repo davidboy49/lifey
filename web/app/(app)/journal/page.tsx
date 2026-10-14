@@ -3,9 +3,10 @@ import { redirect } from "next/navigation";
 import { ApiDown } from "@/components/ApiDown";
 import { Composer } from "@/components/Composer";
 import { EntryRow } from "@/components/EntryRow";
+import { Memories } from "@/components/Memories";
 import { SyncControl } from "@/components/SyncControl";
 import { apiGet } from "@/lib/api";
-import { dayName, shortDay, type JournalResponse } from "@/lib/journal";
+import { dayName, shortDay, type JournalResponse, type Memory } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,8 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
   const rangeLabel = RANGES.find((r) => r.days === days)?.label.toLowerCase() ?? `${days} days`;
   const sync = await apiGet<{ last_run: { finished_at: string | null } | null }>("/api/health/sync");
   const catalog = await apiGet<{ label: string; unit: string }[]>("/api/habits/catalog");
+  const mem = await apiGet<{ memories: Memory[] }>("/api/journal/memories");
+  const memories = mem.status === "ok" ? mem.data.memories : [];
   const syncedAt = sync.status === "ok" ? sync.data.last_run?.finished_at ?? null : null;
 
   const nowTime = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Phnom_Penh" });
@@ -80,6 +83,8 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
         <div className="card p-4"><p className="eyebrow">Notes today</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.notes_today}</p></div>
         <div className="card p-4"><p className="eyebrow">Photos</p><p className="font-display text-[28px] font-semibold leading-tight">{photoCount}</p><p className="text-xs text-ink-3">{rangeLabel}</p></div>
       </section>
+
+      <Memories items={memories} />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="order-2 grid min-w-0 gap-5 lg:order-1">

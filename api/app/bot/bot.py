@@ -36,6 +36,8 @@ from app import attachments, backup_status, money, reminders
 from app.bot import analytics, anomaly as anomaly_detector, checkin, coaching, quit_tracker, reports, training_plan
 from app.bot import store as db
 from app.health import quality
+from app.journal import habits as habit_views
+from app.journal import memories
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")  # NEVER hardcode a fallback here — this file is in a PUBLIC repo
 AUTHORIZED_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -619,9 +621,20 @@ async def streak_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logs = await asyncio.to_thread(db.get_quit_logs)
     frame = await asyncio.to_thread(db.get_df, 120)
     rows = [] if frame is None or frame.empty else frame.to_dict("records")
-    text = (quit_tracker.render_streak(quit_tracker.summarize(logs, quality.today()))
-            + "\n\n" + quit_tracker.render_comparison(quit_tracker.compare_next_day(logs, rows)))
+    text = quit_tracker.render_streak(quit_tracker.summarize(logs, quality.today()))
+    back = await asyncio.to_thread(comeback_line)
+    if back:
+        text += "\n" + html.escape(back)
+    text += "\n\n" + quit_tracker.render_comparison(quit_tracker.compare_next_day(logs, rows))
     await reply_target(update).reply_text(text, parse_mode="HTML")
+
+
+def comeback_line(days: int = 90) -> str | None:
+    """How slips ended over the last `days`: the day after a slip is what this watches, not the streak."""
+    today = quality.today()
+    window = [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
+    logs = db.get_activity_logs_between(window[0].isoformat(), today.isoformat())
+    return habit_views.comeback_text(habit_views.comeback(habit_views.quit_strip(logs, window)))
 
 
 URGE_TIPS = (
@@ -804,6 +817,22 @@ async def feeling_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await target.reply_text(checkin.FEELING_TEXT, reply_markup=checkin.feeling_keyboard(today), parse_mode="HTML")
 
 
+async def quest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """This week's quest and how it is going. Set on the web Review page; the bot only reports."""
+    if not await check_auth(update, context):
+        return
+    from app.journal import quests
+    today = quality.today()
+    week = quests.monday(today)
+    q = await asyncio.to_thread(quests.progress, week, today)
+    if q is None:
+        text = ("No quest set for this week.\n"
+                "Pick one on the Review page of the web app; it is scored from your journal and watch data.")
+    else:
+        text = f"Week of {week:%d %b}\n" + quests.render(q)
+    await reply_target(update).reply_text(text)
+
+
 async def feeling_answer(query, data: str) -> None:
     parsed = checkin.parse_feeling(data)
     if not parsed:
@@ -851,6 +880,26 @@ def run_statement_import(path: str) -> dict:
 WEEKLY_REVIEW_DAY = 0  # python-telegram-bot numbers days 0-6 as Sunday-Saturday
 
 
+async def on_this_day(context: ContextTypes.DEFAULT_TYPE):
+    """Morning: one memory from a month, a year or more ago. Sends nothing on a day that has none."""
+    today = quality.today()
+    if not await asyncio.to_thread(reminders.claim_daily, "on_this_day", today.isoformat()):
+        return
+    pick = memories.best(await asyncio.to_thread(memories.for_day, today))
+    if not pick:
+        return
+    when = f"{date.fromisoformat(pick['date']):%a %d %b %Y}" + (f", {pick['time']}" if pick["time"] else "")
+    caption = f"{pick['label']}: {when}" + (f"\n{pick['note']}" if pick["note"] else "")
+    caption = caption[:1000]                      # Telegram's caption limit is 1024
+    shown = pick["attachment"]
+    found = await asyncio.to_thread(attachments.get, shown["id"]) if shown else None
+    if found:
+        with open(found[0], "rb") as fh:
+            await context.bot.send_photo(chat_id=AUTHORIZED_CHAT_ID, photo=fh, caption=caption)
+    else:
+        await context.bot.send_message(chat_id=AUTHORIZED_CHAT_ID, text=caption)
+
+
 async def weekly_review_nudge(context: ContextTypes.DEFAULT_TYPE):
     """Sunday evening: point to the weekly review page. Sends nothing without a configured address."""
     base = os.environ.get("WEB_URL", "").strip().rstrip("/")
@@ -860,7 +909,8 @@ async def weekly_review_nudge(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=AUTHORIZED_CHAT_ID,
         text=("📝 <b>Your weekly review is ready.</b>\n"
-              "It takes about five minutes: the week in numbers, your own notes, and one change for next week."
+              "It takes about five minutes: the week in numbers, your own notes, and one change for next week. "
+              "If it can be measured, set it as next week's quest on the same page."
               + ("" if base else "\n\n<i>Set WEB_URL to get a link here.</i>")),
         reply_markup=markup, parse_mode="HTML",
     )
@@ -1427,6 +1477,7 @@ COMMANDS = {
     "actionplan": actionplan_command,
     "export": export_command,
     "feeling": feeling_command,
+    "quest": quest_command,
 }
 
 # Shown in Telegram's "Menu" button next to the text box.
@@ -1454,6 +1505,7 @@ BOT_COMMANDS = [
     BotCommand("actionplan", "Latest action plan"),
     BotCommand("export", "Export metrics, journal & habits as CSV"),
     BotCommand("feeling", "Rate how you woke up: /feeling 1-5"),
+    BotCommand("quest", "This week's quest and how it is going"),
     BotCommand("start", "Welcome & keyboard"),
 ]
 
@@ -1471,8 +1523,10 @@ async def post_init(app: Application):
         return
     if not AUTHORIZED_CHAT_ID:
         return
+    #   ON_THIS_DAY_TIME (default 08:00): a note or photo from a month or more ago, only when one exists
     for job, env, default in ((morning_broadcast, "MORNING_TIME", "07:00"),
-                              (nightly_checkin, "CHECKIN_TIME", "21:30")):
+                              (nightly_checkin, "CHECKIN_TIME", "21:30"),
+                              (on_this_day, "ON_THIS_DAY_TIME", "08:00")):
         value = os.environ.get(env, default).strip()
         if value.lower() == "off":
             continue
@@ -1535,7 +1589,8 @@ def main():
     app.add_handler(CommandHandler("sync", sync_command))
     app.add_handler(CommandHandler("export", export_command))
     app.add_handler(CommandHandler("feeling", feeling_command))
-    
+    app.add_handler(CommandHandler("quest", quest_command))
+
     # Inline buttons callback handler
     app.add_handler(CallbackQueryHandler(callback_query_handler))
     app.add_handler(MessageHandler(filters.PHOTO | (filters.Document.ALL & ~filters.Document.FileExtension("xlsx")),

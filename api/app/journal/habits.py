@@ -76,6 +76,56 @@ def quit_strip(logs: list[dict], days: list[date]) -> list[dict]:
     return cells
 
 
+def comeback(strip: list[dict]) -> dict:
+    """Slip episodes in a quit strip: runs of consecutive slip days, and how each one ended.
+
+    This is about the day after a slip, which is where a quit usually unravels, not about the streak
+    number. An episode that ends on a day with no slip is "recovered"; one followed by a day with no
+    entries at all is "unknown" (it is not read as recovered); one that reaches the end of the strip
+    is "ongoing"."""
+    episodes: list[dict] = []
+    i, n = 0, len(strip)
+    while i < n:
+        if strip[i]["state"] != "slip":
+            i += 1
+            continue
+        j = i
+        while j + 1 < n and strip[j + 1]["state"] == "slip":
+            j += 1
+        if j + 1 >= n:
+            outcome = "ongoing"
+        elif strip[j + 1]["state"] == "unknown":
+            outcome = "unknown"
+        else:
+            outcome = "recovered"
+        episodes.append({"start": strip[i]["date"], "end": strip[j]["date"], "days": j - i + 1, "outcome": outcome})
+        i = j + 1
+    return {
+        "window_days": n,
+        "episodes": len(episodes),
+        "next_day": sum(1 for x in episodes if x["days"] == 1 and x["outcome"] == "recovered"),
+        "unknown": sum(1 for x in episodes if x["outcome"] == "unknown"),
+        "longest": max((x["days"] for x in episodes), default=None),
+        "ongoing": bool(episodes) and episodes[-1]["outcome"] == "ongoing",
+        "last": episodes[-1] if episodes else None,
+    }
+
+
+def comeback_text(c: dict) -> str | None:
+    """One plain sentence for the quit card and the bot, or None when there is nothing to say."""
+    if not c["episodes"]:
+        return None
+    if c["ongoing"]:
+        return "Slip today. The comeback is the next day without one."
+    s = "" if c["episodes"] == 1 else "s"
+    text = f"{c['next_day']} of {c['episodes']} slip{s} in the last {c['window_days']} days ended the next day."
+    if c["longest"] and c["longest"] > 1:
+        text += f" Longest was {c['longest']} days in a row."
+    if c["unknown"]:
+        text += f" {c['unknown']} had no entries the day after, so they are not counted either way."
+    return text
+
+
 def feeling_row(feelings: dict[str, int], days: list[date]) -> dict:
     """How you rated waking up, per day. An unrated day is "unknown", never a neutral 3."""
     cells, values = [], []

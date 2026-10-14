@@ -44,6 +44,16 @@ export interface QuitCard {
   relapsed_today: boolean;
 }
 
+export interface QuitComeback {
+  window_days: number;
+  episodes: number;
+  next_day: number;
+  unknown: number;
+  longest: number | null;
+  ongoing: boolean;
+  text: string | null;
+}
+
 export interface CatalogHabit {
   tag: string;
   label: string;
@@ -59,7 +69,7 @@ export interface HabitsResponse {
   days: string[];
   habits: HabitRow[];
   wellbeing: WellbeingRow[];
-  quit: { card: QuitCard | null; strip: QuitCell[] };
+  quit: { card: QuitCard | null; strip: QuitCell[]; comeback: QuitComeback };
   catalog: CatalogHabit[];
   feeling: { today: number | null; ratings: Record<string, number>; by_run: FeelingByRun };
 }
@@ -126,6 +136,36 @@ export interface DatasetInfo {
   key: string;
   label: string;
   rows: number;
+}
+
+export type QuestState = "pass" | "fail" | "unknown" | "pending" | "rest";
+
+export interface Quest {
+  week_start: string;
+  kind: "habit_free" | "sleep_hours" | "bed_before" | "training";
+  target: number;
+  params: { tag?: string; hours?: number; time?: string };
+  label: string;
+  status: "met" | "missed" | "at_risk" | "on_track";
+  passed: number;
+  failed: number;
+  unknown: number;
+  pending: number;
+  days: { date: string; state: QuestState }[];
+}
+
+export interface QuestResponse {
+  week_start: string;
+  is_current: boolean;
+  editable: boolean;
+  quest: Quest | null;
+  plan: { plan_if: string; plan_then: string } | null;
+  templates: {
+    habits: { tag: string; label: string }[];
+    sleep_hours: number[];
+    bed_times: string[];
+    default_target: Record<string, number>;
+  };
 }
 
 export function hoursMinutes(seconds: number | null): string {
