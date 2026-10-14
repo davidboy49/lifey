@@ -12,7 +12,7 @@ from .. import attachments
 from ..auth.deps import current_user
 from ..bot import quit_tracker, store
 from ..health import quality
-from . import entries
+from . import entries, memories
 from . import habits as habit_views
 
 router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(current_user)])
@@ -91,6 +91,13 @@ def timeline(days: int = Query(7, ge=1, le=90), kind: str = Query("all")) -> dic
         "groups": groups,
         "count": sum(len(g["entries"]) for g in groups if not g["empty"]),
     }
+
+
+@router.get("/memories")
+def on_this_day() -> dict:
+    """Notes and photos from this date a month, three, six, twelve and twenty-four months ago."""
+    today = quality.today()
+    return {"today": today.isoformat(), "memories": memories.for_day(today)}
 
 
 @router.post("", status_code=201)

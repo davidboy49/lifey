@@ -24,6 +24,17 @@ export interface JournalEntry {
   attachments?: Attachment[];
 }
 
+export interface Memory {
+  log_id: number;
+  date: string;
+  time: string;
+  note: string;
+  label: string;
+  months: number;
+  attachment: Attachment | null;
+  files: number;
+}
+
 export type JournalGroup =
   | { empty: true; first: string; last: string }
   | { empty: false; date: string; entries: JournalEntry[] };

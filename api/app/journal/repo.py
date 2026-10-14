@@ -56,6 +56,32 @@ def save_review(week_start: date, went_well: str, got_in_way: str, learned: str,
         conn.commit()
 
 
+def get_quest(week_start: date) -> dict | None:
+    rows = _rows("SELECT kind, target, params FROM journal.quests WHERE week_start=%s", (week_start,))
+    if not rows:
+        return None
+    row = rows[0]
+    return {"week_start": week_start.isoformat(), "kind": row["kind"], "target": row["target"],
+            "params": row["params"] if isinstance(row["params"], dict) else {}}
+
+
+def save_quest(week_start: date, kind: str, target: int, params_json: str) -> None:
+    with database.connect() as conn:
+        conn.execute(
+            """INSERT INTO journal.quests (week_start, kind, target, params) VALUES (%s,%s,%s,%s::jsonb)
+               ON CONFLICT (week_start) DO UPDATE SET kind=excluded.kind, target=excluded.target,
+                 params=excluded.params, updated_at=NOW()""",
+            (week_start, kind, target, params_json))
+        conn.commit()
+
+
+def delete_quest(week_start: date) -> bool:
+    with database.connect() as conn:
+        n = conn.execute("DELETE FROM journal.quests WHERE week_start=%s", (week_start,)).rowcount
+        conn.commit()
+        return n > 0
+
+
 def first_activity_date() -> date | None:
     rows = _rows("SELECT LEAST((SELECT MIN(date) FROM journal.activity_logs), "
                  "(SELECT MIN(date) FROM health.daily_metrics)) AS d")

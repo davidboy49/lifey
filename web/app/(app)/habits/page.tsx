@@ -4,10 +4,11 @@ import { ApiDown } from "@/components/ApiDown";
 import { HabitGrid, Legend, WellbeingGrid } from "@/components/HabitGrid";
 import { HabitManager } from "@/components/HabitManager";
 import { FeelingByRun } from "@/components/FeelingByRun";
+import { QuestCard } from "@/components/QuestCard";
 import { QuitCard } from "@/components/QuitCard";
 import { WakeFeeling } from "@/components/WakeFeeling";
 import { apiGet } from "@/lib/api";
-import type { HabitsResponse } from "@/lib/habits";
+import type { HabitsResponse, QuestResponse } from "@/lib/habits";
 import { shortDay } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ export default async function HabitsPage({ searchParams }: { searchParams: Promi
   if (res.status !== "ok") return <ApiDown />;
   const d = res.data;
   const shown = d.habits.filter((h) => h.builtin || h.days > 0);
+  const questRes = await apiGet<QuestResponse>("/api/quest");
+  const quest = questRes.status === "ok" ? questRes.data.quest : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,7 +49,15 @@ export default async function HabitsPage({ searchParams }: { searchParams: Promi
         </nav>
       </header>
 
-      <QuitCard card={d.quit.card} strip={d.quit.strip} />
+      {quest ? (
+        <QuestCard quest={quest} heading="This week’s quest" />
+      ) : (
+        <p className="rounded-2xl border border-dashed border-line px-4 py-3 text-sm text-ink-2">
+          No quest this week. <Link href="/review" className="font-medium text-accent underline underline-offset-2">Set one on the Review page</Link>.
+        </p>
+      )}
+
+      <QuitCard card={d.quit.card} strip={d.quit.strip} comeback={d.quit.comeback} />
 
       <section className="card kind-checkin grid gap-4 p-5 sm:p-6">
         <div>

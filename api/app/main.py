@@ -20,6 +20,7 @@ from .settings_routes import router as settings_router
 from .attachment_routes import router as attachments_router
 from .backup_routes import router as backups_router
 from .journal.habit_routes import router as habits_router
+from .journal.quest_routes import router as quest_router
 from .journal.review_routes import router as review_router
 from .journal.routes import router as journal_router
 from .connector import oauth as connector_oauth
@@ -64,6 +65,7 @@ app.include_router(auth_router)
 app.include_router(journal_router)
 app.include_router(habits_router)
 app.include_router(review_router)
+app.include_router(quest_router)
 app.include_router(data_router)
 app.include_router(sleep_router)
 app.include_router(settings_router)

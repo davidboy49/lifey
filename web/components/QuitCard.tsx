@@ -1,4 +1,4 @@
-import type { QuitCard as Card, QuitCell } from "@/lib/habits";
+import type { QuitCard as Card, QuitCell, QuitComeback } from "@/lib/habits";
 import { shortDay } from "@/lib/journal";
 import { Legend } from "./HabitGrid";
 
@@ -19,7 +19,7 @@ function title(c: QuitCell): string {
 
 // A slip is one amber day inside a long run of violet ones. The big number is
 // "days free of the last 30", so a slip never turns the headline into a zero.
-export function QuitCard({ card, strip }: { card: Card | null; strip: QuitCell[] }) {
+export function QuitCard({ card, strip, comeback }: { card: Card | null; strip: QuitCell[]; comeback?: QuitComeback }) {
   if (!card) {
     return (
       <section className="card kind-quit p-6">
@@ -64,6 +64,12 @@ export function QuitCard({ card, strip }: { card: Card | null; strip: QuitCell[]
           <div><dt className="eyebrow">Slips</dt><dd className="font-display text-xl font-semibold">{card.slips_7d}<span className="text-sm font-normal text-ink-3"> 7d · </span>{card.slips_30d}<span className="text-sm font-normal text-ink-3"> 30d</span></dd></div>
         </dl>
         {slipNote && <p className="rounded-xl bg-panel px-3.5 py-2.5 text-sm text-ink-2">{slipNote}</p>}
+        {comeback?.text && (
+          <p className="text-sm text-ink-2">
+            <span className="eyebrow mr-2">Comeback</span>
+            {comeback.text}
+          </p>
+        )}
         <p className="text-xs text-ink-3">Tracking since {shortDay(card.tracking_since)}</p>
       </div>
     </section>
