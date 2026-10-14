@@ -15,10 +15,10 @@ function fileSize(bytes: number): string {
 }
 
 const KINDS: { key: Kind; label: string }[] = [
+  { key: "note", label: "Note" },
   { key: "habit", label: "Habit" },
   { key: "quit", label: "Quit" },
   { key: "checkin", label: "Check-in" },
-  { key: "note", label: "Note" },
 ];
 const DEFAULT_HABITS = [
   { label: "Alcohol", unit: "drinks" }, { label: "Late caffeine", unit: "times" }, { label: "Late meal", unit: "times" },
@@ -73,7 +73,7 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(true);
-  const [kind, setKind] = useState<Kind>("habit");
+  const [kind, setKind] = useState<Kind>("note");
   const [habit, setHabit] = useState(habits[0]?.label ?? "Alcohol");
   const [custom, setCustom] = useState("");
   const [amount, setAmount] = useState("1");

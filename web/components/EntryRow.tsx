@@ -11,24 +11,55 @@ function size(bytes: number): string {
 function Files({ files }: { files: Attachment[] }) {
   const photos = files.filter((f) => f.has_thumb);
   const others = files.filter((f) => !f.has_thumb);
+  const [hero, ...rest] = photos;
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-2">
-      {photos.map((f) => (
-        <a key={f.id} href={`/api/attachments/${f.id}`} target="_blank" rel="noopener noreferrer" title={`${f.filename} · ${size(f.bytes)}`}
-           className="block overflow-hidden rounded-xl border border-line bg-panel">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`/api/attachments/${f.id}/thumb`} alt={f.filename} loading="lazy" className="block h-24 w-auto max-w-[220px] object-cover" />
-        </a>
-      ))}
-      {others.map((f) => (
-        <a key={f.id} href={`/api/attachments/${f.id}`} download={f.filename}
-           className="inline-flex items-center gap-2 rounded-xl border border-line bg-panel px-3 py-2 text-sm text-ink-2 hover:text-ink">
-          <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Zm0 0v5h5" />
-          </svg>
-          {f.filename}<span className="text-ink-3">· {size(f.bytes)}</span>
-        </a>
-      ))}
+    <div className="mt-1 grid gap-2">
+      {hero && (
+        <figure className="grid gap-1.5">
+          {/* The first photo is shown large, so it uses the full re-encoded image rather than the 480 px thumbnail. */}
+          <a href={`/api/attachments/${hero.id}`} target="_blank" rel="noopener noreferrer"
+             className="block overflow-hidden rounded-xl border border-line bg-panel">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/attachments/${hero.id}`}
+              alt={hero.filename}
+              loading="lazy"
+              width={hero.width ?? undefined}
+              height={hero.height ?? undefined}
+              className="mx-auto block max-h-[460px] w-auto max-w-full object-contain"
+            />
+          </a>
+          <figcaption className="font-mono text-[11.5px] text-ink-3">
+            {hero.filename}
+            {hero.width && hero.height ? ` · ${hero.width}×${hero.height}` : ""} · {size(hero.bytes)}
+            {photos.length > 1 ? ` · ${photos.length} photos` : ""}
+          </figcaption>
+        </figure>
+      )}
+      {rest.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {rest.map((f) => (
+            <a key={f.id} href={`/api/attachments/${f.id}`} target="_blank" rel="noopener noreferrer" title={`${f.filename} · ${size(f.bytes)}`}
+               className="block overflow-hidden rounded-xl border border-line bg-panel">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/api/attachments/${f.id}/thumb`} alt={f.filename} loading="lazy" className="block aspect-square w-full object-cover" />
+            </a>
+          ))}
+        </div>
+      )}
+      {others.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {others.map((f) => (
+            <a key={f.id} href={`/api/attachments/${f.id}`} download={f.filename}
+               className="inline-flex items-center gap-2 rounded-xl border border-line bg-panel px-3 py-2 text-sm text-ink-2 hover:text-ink">
+              <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Zm0 0v5h5" />
+              </svg>
+              {f.filename}<span className="text-ink-3">· {size(f.bytes)}</span>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

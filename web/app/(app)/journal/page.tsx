@@ -14,19 +14,19 @@ const RANGES = [
   { days: 7, label: "7 days" },
   { days: 30, label: "30 days" },
 ];
+// The journal is notes and photos. Habits, quit and check-in entries live on the Habits page,
+// and are only mixed in here through "Everything" (or an old ?kind=habit link).
 const KINDS = [
-  { key: "all", label: "All" },
-  { key: "habit", label: "Habits" },
-  { key: "quit", label: "Quit" },
   { key: "note", label: "Notes" },
-  { key: "checkin", label: "Check-ins" },
-  { key: "training", label: "Training" },
+  { key: "photos", label: "Photos" },
+  { key: "all", label: "Everything" },
 ];
+const LEGACY_KINDS = ["habit", "quit", "checkin", "training"];
 
 function href(days: number, kind: string) {
   const q = new URLSearchParams();
   if (days !== 7) q.set("days", String(days));
-  if (kind !== "all") q.set("kind", kind);
+  if (kind !== "note") q.set("kind", kind);
   const s = q.toString();
   return s ? `/journal?${s}` : "/journal";
 }
@@ -34,12 +34,27 @@ function href(days: number, kind: string) {
 export default async function JournalPage({ searchParams }: { searchParams: Promise<{ days?: string; kind?: string }> }) {
   const sp = await searchParams;
   const days = [1, 7, 30].includes(Number(sp.days)) ? Number(sp.days) : 7;
-  const kind = KINDS.some((k) => k.key === sp.kind) ? (sp.kind as string) : "all";
+  const known = [...KINDS.map((k) => k.key), ...LEGACY_KINDS];
+  const kind = known.includes(sp.kind ?? "") ? (sp.kind as string) : "note";
 
-  const res = await apiGet<JournalResponse>(`/api/journal?days=${days}&kind=${kind}`);
+  // "Photos" is a notes view narrowed to entries that carry a file; the API has no filter for it.
+  const res = await apiGet<JournalResponse>(`/api/journal?days=${days}&kind=${kind === "photos" ? "note" : kind}`);
   if (res.status === "unauthorized") redirect("/login");
   if (res.status !== "ok") return <ApiDown />;
-  const j = res.data;
+  const j: JournalResponse = kind === "photos"
+    ? {
+        ...res.data,
+        groups: res.data.groups
+          .map((g) => (g.empty ? g : { ...g, entries: g.entries.filter((e) => (e.attachments?.length ?? 0) > 0) }))
+          .filter((g) => !g.empty && g.entries.length > 0),
+      }
+    : res.data;
+  if (kind === "photos") j.count = j.groups.reduce((n, g) => n + (g.empty ? 0 : g.entries.length), 0);
+  const photoCount = j.groups.reduce(
+    (n, g) => n + (g.empty ? 0 : g.entries.reduce((m, e) => m + (e.attachments?.filter((a) => a.has_thumb).length ?? 0), 0)),
+    0,
+  );
+  const rangeLabel = RANGES.find((r) => r.days === days)?.label.toLowerCase() ?? `${days} days`;
   const sync = await apiGet<{ last_run: { finished_at: string | null } | null }>("/api/health/sync");
   const catalog = await apiGet<{ label: string; unit: string }[]>("/api/habits/catalog");
   const syncedAt = sync.status === "ok" ? sync.data.last_run?.finished_at ?? null : null;
@@ -62,8 +77,8 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Today at a glance">
         <div className="card p-4"><p className="eyebrow">Mood</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.mood ?? "·"}<span className="text-sm font-normal text-ink-3">{j.summary.mood !== null ? " / 5" : ""}</span></p></div>
         <div className="card p-4"><p className="eyebrow">Energy</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.energy ?? "·"}<span className="text-sm font-normal text-ink-3">{j.summary.energy !== null ? " / 5" : ""}</span></p></div>
-        <div className="card p-4"><p className="eyebrow">Habits today</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.habits_today.length}</p><p className="truncate text-xs text-ink-3">{j.summary.habits_today.join(" · ") || "None logged"}</p></div>
-        <div className="card p-4"><p className="eyebrow">Free, last 30</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.free_days_30 ?? "·"}<span className="text-sm font-normal text-ink-3">{j.summary.tracked_days_30 !== null ? ` / ${j.summary.tracked_days_30}` : ""}</span></p><p className="text-xs text-ink-3">{j.summary.best_run !== null ? `best run ${j.summary.best_run}` : "Not tracking yet"}</p></div>
+        <div className="card p-4"><p className="eyebrow">Notes today</p><p className="font-display text-[28px] font-semibold leading-tight">{j.summary.notes_today}</p></div>
+        <div className="card p-4"><p className="eyebrow">Photos</p><p className="font-display text-[28px] font-semibold leading-tight">{photoCount}</p><p className="text-xs text-ink-3">{rangeLabel}</p></div>
       </section>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -96,7 +111,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
           </div>
 
           {j.count === 0 && !j.groups.some((g) => g.empty) && (
-            <div className="hatch card p-6 text-ink-2">No {kind === "all" ? "entries" : kind} in this range. Try another filter or range.</div>
+            <div className="hatch card p-6 text-ink-2">No {kind === "all" ? "entries" : kind === "photos" ? "photos" : kind === "note" ? "notes" : kind} in this range. Try another filter or range.</div>
           )}
 
           {j.groups.map((g) =>
