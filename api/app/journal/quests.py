@@ -18,10 +18,10 @@ from . import entries as e
 from . import habits as h
 from . import repo
 
-KINDS = ("habit_free", "sleep_hours", "bed_before", "training")
+KINDS = ("habit_free", "sleep_hours", "bed_before", "training", "learning_sessions")
 SLEEP_HOURS_CHOICES = (6.5, 7.0, 7.5, 8.0)
 BED_TIME_CHOICES = ("22:00", "22:30", "23:00", "23:30", "00:00")
-DEFAULT_TARGET = {"habit_free": 5, "sleep_hours": 5, "bed_before": 4, "training": 4}
+DEFAULT_TARGET = {"habit_free": 5, "sleep_hours": 5, "bed_before": 4, "training": 4, "learning_sessions": 3}
 
 
 def monday(day: date) -> date:
@@ -41,7 +41,7 @@ def validate(kind: str, target: int, params: dict, habit_tags: dict[str, str]) -
     if not isinstance(target, int) or isinstance(target, bool) or not 1 <= target <= 7:
         raise ValueError("The target is between 1 and 7.")
     params = params or {}
-    if kind == "habit_free":
+    if kind in ("habit_free", "learning_sessions"):
         tag = str(params.get("tag") or "")
         if tag not in habit_tags:
             raise ValueError("Pick a habit from your list.")
@@ -70,6 +70,9 @@ def label(kind: str, target: int, params: dict, habit_tags: dict[str, str]) -> s
         return f"{params['hours']:g} hours or more on {target} nights"
     if kind == "bed_before":
         return f"In bed before {params['time']} on {target} nights"
+    if kind == "learning_sessions":
+        name = habit_tags.get(params.get("tag", ""), e.habit_label(params.get("tag", "")))
+        return f"{target} {name.lower()} session{'' if target == 1 else 's'}"
     return f"{target} training session{'' if target == 1 else 's'}"
 
 
@@ -87,6 +90,21 @@ def _day_states(kind: str, params: dict, days: list[date], today: date, *, grid_
             else:
                 raw = by_day.get(d.isoformat(), "unknown")
                 state = {"none": "pass", "logged": "fail"}.get(raw, "unknown")
+            cells.append({"date": d.isoformat(), "state": state})
+        return cells
+
+    if kind == "learning_sessions":
+        row = next((r for r in grid_rows if r["tag"] == params["tag"]), None)
+        by_day = {c["date"]: c["state"] for c in (row["cells"] if row else [])}
+        for d in days:
+            raw = by_day.get(d.isoformat(), "unknown")
+            if raw == "logged":
+                state = "pass"
+            elif d >= today:
+                state = "pending"
+            else:
+                # Not practising is not a failure; a day with nothing written down is simply unknown.
+                state = "rest" if raw == "none" else "unknown"
             cells.append({"date": d.isoformat(), "state": state})
         return cells
 

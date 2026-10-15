@@ -3,7 +3,8 @@
 Claude (web, phone, desktop) connects to a remote MCP server with the
 authorization-code flow + PKCE and registers itself first (RFC 7591). The
 person approves on Lifey's own sign-in page, so the password is only ever typed
-into Lifey. Everything stored is hashed; tokens are read-only ("lifey:read").
+into Lifey. Everything stored is hashed. Tokens are read-only ("lifey:read") unless the owner ticks
+the capture box on that page, which also grants "lifey:write" (see connector/writes.py).
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 from .. import db
 
 SCOPE = "lifey:read"
+WRITE_SCOPE = "lifey:write"
 ACCESS_TTL = 60 * 60                 # 1 hour
 REFRESH_TTL = 30 * 24 * 60 * 60      # 30 days, rotated on every use
 CODE_TTL = 5 * 60
@@ -112,11 +114,15 @@ def discard_request(request_id: str) -> None:
         conn.commit()
 
 
-def issue_code(request_id: str, client_id: str, params: AuthorizationParams, user_id: int) -> str:
-    """Turn an approved request into a single-use authorization code."""
+def issue_code(request_id: str, client_id: str, params: AuthorizationParams, user_id: int,
+               scopes: list[str] | None = None) -> str:
+    """Turn an approved request into a single-use authorization code.
+
+    `scopes` is what the owner granted on the consent page. It is never wider than what they ticked,
+    whatever the client asked for, and always includes read."""
     code = secrets.token_urlsafe(32)
     data = AuthorizationCode(
-        code="", scopes=params.scopes or [SCOPE], expires_at=_now() + CODE_TTL, client_id=client_id,
+        code="", scopes=scopes or [SCOPE], expires_at=_now() + CODE_TTL, client_id=client_id,
         code_challenge=params.code_challenge, redirect_uri=params.redirect_uri,
         redirect_uri_provided_explicitly=params.redirect_uri_provided_explicitly, resource=params.resource,
         subject=str(user_id))

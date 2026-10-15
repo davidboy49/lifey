@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { ApiDown } from "@/components/ApiDown";
 import { BackupCard } from "@/components/BackupCard";
+import { ConnectorActivity } from "@/components/ConnectorActivity";
 import { ReminderSettings } from "@/components/ReminderSettings";
 import type { BackupStatus } from "@/lib/backups";
 import { apiGet } from "@/lib/api";
+import type { ConnectorActivityRow } from "@/lib/learning";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +19,7 @@ export default async function SettingsPage() {
   if (res.status === "unauthorized") redirect("/login");
   if (res.status !== "ok") return <ApiDown />;
   const backups = await apiGet<BackupStatus>("/api/backups");
+  const activity = await apiGet<{ activity: ConnectorActivityRow[] }>("/api/connector/activity");
 
   return (
     <div className="flex flex-col gap-6">
@@ -29,6 +32,7 @@ export default async function SettingsPage() {
         </p>
       </header>
       {backups.status === "ok" && <BackupCard status={backups.data} />}
+      {activity.status === "ok" && <ConnectorActivity rows={activity.data.activity} />}
       <ReminderSettings initial={res.data.reminders} timezone={res.data.timezone} />
     </div>
   );

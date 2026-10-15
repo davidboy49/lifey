@@ -148,7 +148,7 @@ export default async function ReviewPage({ searchParams }: { searchParams: Promi
 
       <section className="grid gap-4" aria-labelledby="rv-reflect">
         <h2 id="rv-reflect" className="eyebrow">Your reflection</h2>
-        <ReviewReflection key={r.week_start} weekStart={r.week_start} initial={r.reflection} lastPlan={r.last_plan} />
+        <ReviewReflection key={r.week_start} weekStart={r.week_start} initial={r.reflection} learning={r.learning} lastPlan={r.last_plan} />
       </section>
 
       {picker && (

@@ -12,6 +12,7 @@ const KIND_LABEL: Record<Kind, string> = {
   sleep_hours: "Sleep enough",
   bed_before: "In bed on time",
   training: "Train",
+  learning_sessions: "Learn",
 };
 
 /** Set, change or clear the quest for one week. Progress is scored by the server from your data. */
@@ -20,6 +21,7 @@ export function QuestPicker({ data }: { data: QuestResponse }) {
   const t = data.templates;
   const current = data.quest;
   const [kind, setKind] = useState<Kind>(current?.kind ?? "bed_before");
+  const learningTag = t.habits.find((h) => h.tag === "learning")?.tag;
   const [tag, setTag] = useState(current?.params.tag ?? t.habits[0]?.tag ?? "");
   const [hours, setHours] = useState(String(current?.params.hours ?? 7));
   const [time, setTime] = useState(current?.params.time ?? "23:00");
@@ -32,6 +34,7 @@ export function QuestPicker({ data }: { data: QuestResponse }) {
 
   function pickKind(k: Kind) {
     setKind(k);
+    if (k === "learning_sessions" && learningTag) setTag(learningTag);
     setTarget(t.default_target[k] ?? 4);
     setSaved(false);
   }
@@ -41,7 +44,7 @@ export function QuestPicker({ data }: { data: QuestResponse }) {
     setBusy(true);
     setError(null);
     setSaved(false);
-    const params = kind === "habit_free" ? { tag } : kind === "sleep_hours" ? { hours: Number(hours) } : kind === "bed_before" ? { time } : {};
+    const params = kind === "habit_free" || kind === "learning_sessions" ? { tag } : kind === "sleep_hours" ? { hours: Number(hours) } : kind === "bed_before" ? { time } : {};
     try {
       const res = await fetch(`/api/quest/${data.week_start}`, {
         method: "PUT",
@@ -129,10 +132,18 @@ export function QuestPicker({ data }: { data: QuestResponse }) {
           </>
         )}
         {kind === "training" && <span>At least</span>}
+        {kind === "learning_sessions" && (
+          <>
+            <span>At least</span>
+            <select aria-label="Learning habit" className={field} value={tag} onChange={(e) => setTag(e.target.value)}>
+              {t.habits.map((h) => <option key={h.tag} value={h.tag}>{h.label}</option>)}
+            </select>
+          </>
+        )}
         <select aria-label="How many" className={field} value={target} onChange={(e) => setTarget(Number(e.target.value))}>
           {[1, 2, 3, 4, 5, 6, 7].map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
-        <span>{kind === "habit_free" ? "of 7 days" : kind === "training" ? (target === 1 ? "session" : "sessions") : "nights"}</span>
+        <span>{kind === "habit_free" ? "of 7 days" : kind === "training" || kind === "learning_sessions" ? (target === 1 ? "session" : "sessions") : "nights"}</span>
       </div>
 
       <p className="text-xs text-ink-3">

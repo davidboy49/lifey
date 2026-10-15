@@ -1,17 +1,23 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useRef, useState } from "react";
+import { monthName, sessionsLine, type ReviewLearning } from "@/lib/learning";
 
 interface Props {
   weekStart: string;
-  initial: { went_well: string; got_in_way: string; learned: string; plan_if: string; plan_then: string } | null;
+  initial: {
+    went_well: string; got_in_way: string; learned: string; plan_if: string; plan_then: string;
+    recall?: string; learn_slot?: string;
+  } | null;
+  learning: ReviewLearning;
   lastPlan: { plan_if: string; plan_then: string } | null;
 }
 
 const field = "w-full rounded-xl border border-line bg-panel px-3.5 py-2.5 text-[15px] text-ink outline-none focus:border-accent";
 
-export function ReviewReflection({ weekStart, initial, lastPlan }: Props) {
+export function ReviewReflection({ weekStart, initial, learning, lastPlan }: Props) {
   const router = useRouter();
   const start = useRef(JSON.stringify(initial ?? {}));
   const [form, setForm] = useState({
@@ -20,6 +26,8 @@ export function ReviewReflection({ weekStart, initial, lastPlan }: Props) {
     learned: initial?.learned ?? "",
     plan_if: initial?.plan_if ?? "",
     plan_then: initial?.plan_then ?? "",
+    recall: initial?.recall ?? "",
+    learn_slot: initial?.learn_slot ?? "",
   });
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">(initial ? "saved" : "idle");
   const dirty = JSON.stringify(form) !== JSON.stringify({ ...JSON.parse(start.current || "{}") });
@@ -76,6 +84,48 @@ export function ReviewReflection({ weekStart, initial, lastPlan }: Props) {
           />
         </label>
       ))}
+
+      <section className="grid gap-3 rounded-2xl border border-line p-4" aria-labelledby="rv-learning">
+        <h3 id="rv-learning" className="font-semibold">What you are learning</h3>
+        {learning.focus ? (
+          <>
+            <p className="text-[15px]">
+              <b>{learning.focus.topic}</b>, since {monthName(learning.focus.month)}.{" "}
+              {learning.week ? sessionsLine(learning.week) + " this week." : ""}
+            </p>
+            <p className="text-sm text-ink-2">Outcome: {learning.focus.outcome}</p>
+            {learning.renewal === "close" && (
+              <p className="rounded-xl bg-accent-soft px-3.5 py-2.5 text-sm text-accent">
+                This focus is from an earlier month. <Link href="/learning" className="underline underline-offset-2">Close it and set the next one.</Link>
+              </p>
+            )}
+            {learning.last_recall && (
+              <div className="rounded-xl bg-raised px-3.5 py-3 text-sm">
+                <p className="eyebrow">What you wrote last week</p>
+                <p className="mt-1 text-ink-2">{learning.last_recall}</p>
+                <p className="mt-1 text-ink-3">Cover it and try again below. What do you still remember?</p>
+              </div>
+            )}
+            <label className="grid gap-1.5" htmlFor="rv-recall">
+              <span className="font-semibold">Without looking: explain the one idea from this week in two sentences.</span>
+              <textarea id="rv-recall" className={`${field} min-h-[88px] resize-y`} value={form.recall}
+                onChange={(e) => set("recall", e.target.value)} maxLength={4000}
+                placeholder="Write it first, then check your notes." />
+            </label>
+            <label className="grid gap-1.5" htmlFor="rv-slot">
+              <span className="font-semibold">Practice slot for next week</span>
+              <input id="rv-slot" className={field} value={form.learn_slot} onChange={(e) => set("learn_slot", e.target.value)}
+                maxLength={300} placeholder={learning.last_slot ?? (learning.focus.plan_if ? `If ${learning.focus.plan_if}, then ${learning.focus.plan_then}` : "Tue and Thu, 20:00, 30 minutes")} />
+              <span className="text-sm text-ink-3">Keep it or change it. Spread over days beats one long block.</span>
+            </label>
+          </>
+        ) : (
+          <p className="text-sm text-ink-2">
+            Nothing set for this month. <Link href="/learning" className="text-accent underline underline-offset-2">Choose one thing to learn</Link> and this
+            review will ask one question about it each week.
+          </p>
+        )}
+      </section>
 
       <fieldset className="grid gap-2">
         <legend className="font-semibold">One change for next week</legend>
