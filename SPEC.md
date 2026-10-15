@@ -260,3 +260,32 @@ before 30 stable days, rewriting the existing web app or bot.
 - Effect on real data: 28-day sleep baseline for 2026-10-11 went from 6.3 h to 6.8 h, matching Lifey's own
   sleep analysis (6.78 h). A partial night is never a prediction input or an outcome.
 - Bug caught in testing: NULL Body Battery made the actuals filter evaluate to NULL; fixed with COALESCE.
+
+## 18. Learning thread (2026-10-15)
+
+Owner override of the 30-day freeze, logged in CLAUDE.md. Proposal and evidence table: `lifey-learning-proposal.md`.
+
+- Migration 0013: `journal.learning_focus` (one active at a time, partial unique index), `journal.learning_studies`
+  (link and retrieved date required), `weekly_reviews.recall` and `learn_slot`, quest kind `learning_sessions`.
+- Sessions are journal entries of the custom habit `learning` (minutes), never stored separately.
+- `api/app/journal/learning.py` (pure rules and the starter shelf), `learning_routes.py` (`/api/learning`),
+  review block in `review_routes.py`, connector tool `lifey_learning` (read-only; topic, outcome and counts only). Writes were added the same day, see section 19.
+- Web: `/learning`, recall and slot in the review form, "Learn" in the quest picker.
+- Not built: no automatic study search, no LLM grading of recall, no extra reminder (the Sunday nudge gained one phrase).
+
+## 19. Connector writes (2026-10-15)
+
+Owner approved: log a learning session, and propose a study, focus or quest. Not approved, so not built: logging other
+habits, adding notes. Logging is silent and undoable; anything that sets a commitment is confirm-first via an inbox.
+
+- Scope: tokens carry `lifey:read` and, only when the owner ticks the capture box on `/oauth/login`, `lifey:write`.
+  The client cannot widen this by asking. A read-only connection calling a write tool gets a plain refusal.
+- Migration 0014: `journal.connector_audit` (every write or refusal, idempotency key, `undone_at`) and
+  `journal.proposals` (pending, accepted, rejected).
+- `connector/writes.py`: `lifey_log_learning_session` (1 to 600 minutes, today or the last 7 days),
+  `lifey_propose_study`, `lifey_propose_focus`, `lifey_propose_quest`. 60 writes an hour; 20 pending at most.
+- `journal/proposals.py` applies an accepted proposal through the same validators the web uses. A focus cannot replace
+  an open one; a quest for a past week cannot be accepted.
+- Web: the inbox on `/learning` (Accept and Reject; a study shows its raw link) and "Claude connector activity" in
+  Settings with Undo.
+- Existing connections stay read-only until reconnected in Claude with the box ticked.

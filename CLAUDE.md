@@ -48,7 +48,7 @@ Read `SPEC.md` first. This file is the rule set. Place both files at the repo ro
 - Journal free-text notes are never sent to the LLM. LLM sees derived daily numbers only.
 - Tool limits: `query_db` is SELECT-only on `agent.*` views via role `lifey_agent` with timeout and
   row cap; `run_python` has no network and hard CPU/memory/time limits; writes only through fixed
-  parameterised handlers. Per-message turn cap; daily and monthly (USD 5) spend ceilings, logged
+  parameterised handlers (the Claude connector follows the same rule: see `connector/writes.py`). Per-message turn cap; daily and monthly (USD 5) spend ceilings, logged
   to `ml.llm_usage`.
 - Paid LLM tier only (health data). Provider is DeepSeek, behind one adapter (OpenAI-compatible); never self-hosted.
   DeepSeek terms are weaker than Western providers, so send derived numbers only: no notes, raw payloads or identifiers.
@@ -71,6 +71,8 @@ Read `SPEC.md` first. This file is the rule set. Place both files at the repo ro
 - 2026-10-10: One watch for the whole history; crash-night thresholds accepted as proposals.
 - 2026-10-11: Crash night = HRV z<=-1.5 AND (sleep score or hours z<=-1.0), measured on real history (~3/month).
 - 2026-10-10: Backups via rclone to a cloud drive, encrypted.
+- 2026-10-15: Owner overrode the 30-day freeze for one feature: the learning thread (monthly focus, weekly recall, evidence shelf). Scope: skills of any kind (tech, life, sport, money, investing). Shelf is on demand via the Claude connector. Only topic and outcome leave the app, never notes or recall text.
+- 2026-10-15: Claude connector may write, within fixed limits (owner chose silent logging, confirm-first for commitments). Separate scope `lifey:write`, granted only by ticking the capture box on the consent page. Allowed: log a learning session (undoable); propose a study, a monthly focus or a weekly quest into an inbox the owner accepts on the web. Never: close a focus, the review reflection or recall, journal notes, other habits, edit or delete. Every write is audited, rate-limited (60/hour), idempotent by request id, and listed in Settings with undo.
 
 ## Open items (resolve in Phase 1)
 - Live row count and gap report for `health.daily_metrics`.

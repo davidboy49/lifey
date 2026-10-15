@@ -10,7 +10,7 @@ from ..auth.deps import current_user
 from ..bot import quit_tracker, store, training_plan
 from ..health import quality
 from . import entries as e
-from . import habit_routes, repo
+from . import habit_routes, learning, repo
 from . import habits as h
 from . import review as r
 
@@ -25,6 +25,9 @@ class Reflection(BaseModel):
     learned: str = Field(default="", max_length=4000)
     plan_if: str = Field(default="", max_length=300)
     plan_then: str = Field(default="", max_length=300)
+    recall: str | None = Field(default=None, max_length=4000)       # None keeps what is stored
+    learn_slot: str | None = Field(default=None, max_length=300)
+
 
 
 def _week_label(start: date) -> str:
@@ -82,11 +85,25 @@ def week_review(week: date | None = Query(default=None)) -> dict:
         "patterns": patterns,
         "min_nights": r.MIN_NIGHTS,
         "reflection": reflection,
+        "learning": _learning_block(week_logs, days, today, last_week),
         "last_plan": ({"plan_if": last_week["plan_if"], "plan_then": last_week["plan_then"]}
                       if last_week and (last_week["plan_if"] or last_week["plan_then"]) else None),
         "habit_cues": [{"label": c["label"], "cue_if": c["cue_if"], "cue_then": c["cue_then"]}
                        for c in cat if c.get("cue_if") or c.get("cue_then")],
     }
+
+
+def _learning_block(week_logs: list[dict], days: list[date], today: date, last_week: dict | None) -> dict:
+    """The current focus against this week's journal entries. Nothing is graded here."""
+    active = repo.active_focus()
+    block: dict = {"focus": None, "renewal": learning.renewal(active, today), "week": None,
+                   "last_recall": (last_week or {}).get("recall") or None,
+                   "last_slot": (last_week or {}).get("learn_slot") or None}
+    if active:
+        keep = ("id", "topic", "category", "outcome", "plan_if", "plan_then", "month")
+        block["focus"] = {k: active[k] for k in keep}
+        block["week"] = learning.sessions(week_logs, active["habit_tag"], [d for d in days if d <= today])
+    return block
 
 
 @router.put("/{week_start}")
@@ -96,5 +113,7 @@ def save_reflection(week_start: date, body: Reflection) -> dict:
     if week_start > r.monday(quality.today()):
         raise HTTPException(422, "That week has not started yet.")
     repo.save_review(week_start, body.went_well.strip(), body.got_in_way.strip(), body.learned.strip(),
-                     body.plan_if.strip(), body.plan_then.strip())
+                     body.plan_if.strip(), body.plan_then.strip(),
+                     None if body.recall is None else body.recall.strip(),
+                     None if body.learn_slot is None else body.learn_slot.strip())
     return {"saved": True, "week_start": week_start.isoformat()}

@@ -36,12 +36,17 @@ input{{width:100%;padding:.7rem .8rem;border-radius:10px;border:1px solid var(--
 .row{{display:flex;gap:10px;margin-top:1.2rem}}
 button{{flex:1;padding:.75rem;border-radius:10px;border:1px solid var(--line);font:inherit;font-weight:600;cursor:pointer;background:transparent;color:var(--ink)}}
 button.go{{background:var(--acc);border-color:var(--acc);color:#fff}}
-.err{{color:var(--bad);margin-top:.8rem}}small{{color:var(--mut)}}
+.err{{color:var(--bad);margin-top:.8rem}}
+.opt{{display:flex;gap:10px;align-items:flex-start;margin:.2rem 0 .6rem;font-size:.9rem}}.opt input{{width:auto;margin-top:.25rem}}small{{color:var(--mut)}}
 </style></head><body><main>
 <h1>Connect {client} to Lifey</h1>
-<p>Sign in to let it <strong>read</strong> your health, journal and habits. It cannot change or delete anything.</p>
+<p>Sign in to let it <strong>read</strong> your health, journal and habits.</p>
 <ul><li>Daily metrics, sleep and activities</li><li>Journal entries and notes</li><li>Habit logs</li></ul>
-<form method="post" action="/oauth/login" autocomplete="on">
+<label class="opt"><input type="checkbox" name="write" value="1" form="f">
+<span>Also let it <strong>log learning sessions</strong> and <strong>suggest</strong> studies, a monthly focus
+and a weekly quest. Suggestions wait for your approval in Lifey; sessions can be undone. It still cannot
+delete or edit anything else, or write your notes and reflections.</span></label>
+<form id="f" method="post" action="/oauth/login" autocomplete="on">
 <input type="hidden" name="request" value="{request}">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" required autofocus>
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
@@ -78,7 +83,7 @@ async def login_page(request: str = "") -> HTMLResponse:
 
 @router.post("/login")
 async def login_submit(req: Request, request: str = Form(""), username: str = Form(""),
-                       password: str = Form(""), action: str = Form("allow")):
+                       password: str = Form(""), action: str = Form("allow"), write: str = Form("")):
     found = await asyncio.to_thread(oauth.load_request, request)
     if not found:
         return _expired()
@@ -104,5 +109,6 @@ async def login_submit(req: Request, request: str = Form(""), username: str = Fo
     if user_id is None:
         return _page(request, client.client_name or "", redirect, "Invalid username or password.", 401)
 
-    code = await asyncio.to_thread(oauth.issue_code, request, client.client_id, params, user_id)
+    granted = [oauth.SCOPE] + ([oauth.WRITE_SCOPE] if write == "1" else [])
+    code = await asyncio.to_thread(oauth.issue_code, request, client.client_id, params, user_id, granted)
     return RedirectResponse(oauth.redirect_with(redirect, code=code, state=params.state), 303, headers=HEADERS)

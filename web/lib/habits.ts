@@ -1,3 +1,5 @@
+import type { ReviewLearning } from "./learning";
+
 export type CellState = "unknown" | "none" | "logged";
 
 export interface HabitCell {
@@ -110,7 +112,11 @@ export interface Review {
     text: string;
   }[];
   min_nights: number;
-  reflection: { went_well: string; got_in_way: string; learned: string; plan_if: string; plan_then: string } | null;
+  reflection: {
+    went_well: string; got_in_way: string; learned: string; plan_if: string; plan_then: string;
+    recall?: string; learn_slot?: string;
+  } | null;
+  learning: ReviewLearning;
   last_plan: { plan_if: string; plan_then: string } | null;
   habit_cues: { label: string; cue_if: string | null; cue_then: string | null }[];
 }
@@ -142,7 +148,7 @@ export type QuestState = "pass" | "fail" | "unknown" | "pending" | "rest";
 
 export interface Quest {
   week_start: string;
-  kind: "habit_free" | "sleep_hours" | "bed_before" | "training";
+  kind: "habit_free" | "sleep_hours" | "bed_before" | "training" | "learning_sessions";
   target: number;
   params: { tag?: string; hours?: number; time?: string };
   label: string;

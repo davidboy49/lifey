@@ -179,3 +179,30 @@ def digest(days: int = DEFAULT_DAYS) -> dict:
                           "Observations are correlational, from one person's data; do not state causes.",
                           "Do not diagnose; suggest seeing a clinician for anything health-related that worries you."],
     }
+
+
+def learning() -> dict:
+    """What is being learned and how it is going, for finding studies. Only the topic, the outcome and
+    counts leave the app: no journal notes, no recall text, no plan wording."""
+    from ..bot import store
+    from ..journal import learning as lt
+    from ..journal import repo
+
+    today = quality.today()
+    active = repo.active_focus()
+    if active is None:
+        return {"focus": None, "note": "No learning focus is set. Set one on the Learning page in Lifey."}
+    logs = store.get_activity_logs_between(lt.month_start(today).isoformat(), today.isoformat())
+    month_days = [lt.month_start(today) + timedelta(days=i) for i in range((today - lt.month_start(today)).days + 1)]
+    return {
+        "focus": {"topic": active["topic"], "category": active["category"], "outcome": active["outcome"],
+                  "month": str(active["month"])[:10]},
+        "this_month": lt.sessions(logs, active["habit_tag"], month_days),
+        "previous_focuses": [{"topic": f["topic"], "result": f["result"]} for f in repo.closed_focuses(6)],
+        "already_on_shelf": [{"citation": s["citation"], "url": s["url"]} for s in repo.list_studies(active["topic_key"])],
+        "note": ("Use this to search the web for studies on how to learn this topic better. Cite title, authors, "
+                 "year and a working link for each, say what the study is and is not evidence for, and skip any "
+                 "you cannot link. If this connection has the write permission, send each with "
+                 "lifey_propose_study; it waits in an inbox for the person to accept. Otherwise give them the "
+                 "citations to keep on the Learning page."),
+    }

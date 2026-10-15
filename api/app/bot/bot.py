@@ -909,7 +909,7 @@ async def weekly_review_nudge(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=AUTHORIZED_CHAT_ID,
         text=("📝 <b>Your weekly review is ready.</b>\n"
-              "It takes about five minutes: the week in numbers, your own notes, and one change for next week. "
+              "It takes about five minutes: the week in numbers, your own notes, what you are learning, and one change for next week. "
               "If it can be measured, set it as next week's quest on the same page."
               + ("" if base else "\n\n<i>Set WEB_URL to get a link here.</i>")),
         reply_markup=markup, parse_mode="HTML",
