@@ -289,3 +289,11 @@ habits, adding notes. Logging is silent and undoable; anything that sets a commi
 - Web: the inbox on `/learning` (Accept and Reject; a study shows its raw link) and "Claude connector activity" in
   Settings with Undo.
 - Existing connections stay read-only until reconnected in Claude with the box ticked.
+
+## 18. VPS cleanup (2026-10-18)
+- A deploy failed at 100% disk. Freed space (95% -> 90%, 3.9 GB free): removed AuditDesk (service, /opt/auditdesk;
+  source stays on GitHub, `dev.db` + unit file archived at /root/backups/auditdesk-final-*.tar.gz), the orphan
+  /root/garmin-health/venv (the legacy rollback stack uses venv-1a61ab7), npm and pip caches, old lifey rollback images.
+- `deploy/deploy.sh` now refuses to start with under 3 GB free (override with MIN_FREE_GB). Deploys need ~1.5 GB scratch.
+- Open: other projects' leftovers (state-*.db copies, oe-hb deploy snapshots, old Claude CLI versions) await the owner; the
+  real fix for memory (2.9 GB swap in use) and disk is a larger Hetzner plan.

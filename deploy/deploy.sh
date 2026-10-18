@@ -8,6 +8,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# A build needs about 1.5 GB of scratch space for the API and web images. Starting one on a full
+# disk fails halfway and leaves partial layers behind, so refuse up front. Override: MIN_FREE_GB=1
+need_gb="${MIN_FREE_GB:-3}"
+free_kb="$(df --output=avail -k / | tail -1 | tr -d ' ')"
+if [ "$free_kb" -lt $((need_gb * 1024 * 1024)) ]; then
+  echo "Not deploying: only $((free_kb / 1024 / 1024)) GB free on /, need ${need_gb} GB." >&2
+  echo "Free space first (docker image prune -f, old backups, unused images), then re-run." >&2
+  exit 1
+fi
+
 if [ ! -f .env ]; then
   umask 077
   pw="$(openssl rand -hex 24)"
