@@ -13,7 +13,7 @@ function Files({ files }: { files: Attachment[] }) {
   const others = files.filter((f) => !f.has_thumb);
   const [hero, ...rest] = photos;
   return (
-    <div className="mt-1 grid gap-2">
+    <div className="mt-1 grid min-w-0 gap-2">
       {hero && (
         <figure className="grid gap-1.5">
           {/* The first photo is shown large, so it uses the full re-encoded image rather than the 480 px thumbnail. */}
@@ -29,7 +29,7 @@ function Files({ files }: { files: Attachment[] }) {
               className="mx-auto block max-h-[460px] w-auto max-w-full object-contain"
             />
           </a>
-          <figcaption className="font-mono text-[11.5px] text-ink-3">
+          <figcaption className="font-mono text-[11.5px] text-ink-3 [overflow-wrap:anywhere]">
             {hero.filename}
             {hero.width && hero.height ? ` · ${hero.width}×${hero.height}` : ""} · {size(hero.bytes)}
             {photos.length > 1 ? ` · ${photos.length} photos` : ""}
@@ -48,14 +48,15 @@ function Files({ files }: { files: Attachment[] }) {
         </div>
       )}
       {others.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {others.map((f) => (
             <a key={f.id} href={`/api/attachments/${f.id}`} download={f.filename}
-               className="inline-flex items-center gap-2 rounded-xl border border-line bg-panel px-3 py-2 text-sm text-ink-2 hover:text-ink">
+               title={`${f.filename} · ${size(f.bytes)}`}
+               className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-xl border border-line bg-panel px-3 py-2 text-sm text-ink-2 hover:text-ink">
               <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Zm0 0v5h5" />
               </svg>
-              {f.filename}<span className="text-ink-3">· {size(f.bytes)}</span>
+              <span className="min-w-0 truncate">{f.filename}</span><span className="shrink-0 text-ink-3">· {size(f.bytes)}</span>
             </a>
           ))}
         </div>
@@ -107,7 +108,7 @@ export function EntryRow({ entry }: { entry: JournalEntry }) {
             </span>
           )}
         </div>
-        {entry.note && <p className="whitespace-pre-wrap text-[14.5px] text-ink-2">{entry.note}</p>}
+        {entry.note && <p className="whitespace-pre-wrap text-[14.5px] text-ink-2 [overflow-wrap:anywhere]">{entry.note}</p>}
         {entry.attachments && entry.attachments.length > 0 && <Files files={entry.attachments} />}
         {failed && <p className="text-sm text-alert">Couldn’t remove that. Try again.</p>}
       </div>

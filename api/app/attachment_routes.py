@@ -14,6 +14,8 @@ from .bot import store
 from .health import quality
 from .journal.routes import MAX_BACKDATE_DAYS
 
+NOTE_MAX = 2000
+
 router = APIRouter(prefix="/api/attachments", tags=["attachments"], dependencies=[Depends(current_user)])
 
 SERVE_HEADERS = {
@@ -64,7 +66,9 @@ async def new_entry_with_files(files: list[UploadFile] = File(...), note: str = 
     occurred = time or now.strftime("%H:%M")
     if day == today and time and time > now.strftime("%H:%M"):
         raise HTTPException(422, "That time is still in the future.")
-    note = note.strip()[:2000]
+    note = note.strip()
+    if len(note) > NOTE_MAX:   # reject loudly: a silent cut would lose the user's words
+        raise HTTPException(422, f"Notes can be up to {NOTE_MAX} characters; yours is {len(note)}. Nothing was saved.")
     if not files:
         raise HTTPException(422, "Choose a file.")
 

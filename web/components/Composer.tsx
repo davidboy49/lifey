@@ -8,7 +8,22 @@ type Kind = "habit" | "quit" | "checkin" | "note";
 
 const MAX_FILE = 10 * 1024 * 1024;
 const MAX_FILES = 6;
+const NOTE_MAX = 2000;          // same limit as the API; never trim silently
+const UPLOAD_TIMEOUT_MS = 120_000;
 const ACCEPT = "image/jpeg,image/png,image/webp,application/pdf";
+
+/** A readable reason for a failed request, whatever the server (or a proxy in front of it) answered. */
+function describeFailure(res: Response, body: { detail?: unknown }): string {
+  if (typeof body.detail === "string") return body.detail;
+  if (Array.isArray(body.detail) && body.detail.length) {
+    const first = body.detail[0] as { msg?: string };
+    if (first?.msg) return first.msg.replace(/^Value error, /, "");
+  }
+  if (res.status === 413) return "That upload is bigger than the server accepts (about 12 MB). Nothing was saved.";
+  if (res.status === 401) return "Your session has ended. Sign in again, then retry. Nothing was saved.";
+  if (res.status >= 500) return "The server had a problem. Nothing was saved. Try again in a moment.";
+  return "Couldn’t save that entry. Check the fields and try again.";
+}
 
 function fileSize(bytes: number): string {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -89,10 +104,16 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ text: string; ids: number[] } | null>(null);
+  const alertRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     if (window.matchMedia("(max-width: 1023px)").matches) setOpen(false);
   }, []);
+
+  // A failure must never hide below the fold or behind a long form.
+  useEffect(() => {
+    if (error) alertRef.current?.scrollIntoView({ block: "nearest" });   // instant: reliable, and respects reduced motion
+  }, [error]);
 
   const day = ago === "pick" ? picked : addDays(today, -ago);
   const isHabit = kind === "habit";
@@ -120,6 +141,9 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
     if (kind === "note" && !note.trim() && files.length === 0) return "Write the note first, or attach a file.";
     if (kind === "checkin" && mood === null && energy === null) return "Pick a mood or an energy level.";
     if (day > today) return "That date is in the future.";
+    if (note.trim().length > NOTE_MAX) {
+      return `Your note is ${note.trim().length} characters; the limit is ${NOTE_MAX}. Shorten it by ${note.trim().length - NOTE_MAX}. Nothing was cut.`;
+    }
     return null;
   }
 
@@ -129,6 +153,8 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
     if (problem) return setError(problem);
     setBusy(true);
     setError(null);
+    const timer = new AbortController();
+    const timeout = setTimeout(() => timer.abort(), UPLOAD_TIMEOUT_MS);
     try {
       const withFiles = kind === "note" && files.length > 0;
       let res: Response;
@@ -138,17 +164,18 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
         form.append("note", note.trim());
         form.append("date", day);
         form.append("time", time);
-        res = await fetch("/api/attachments", { method: "POST", body: form });
+        res = await fetch("/api/attachments", { method: "POST", body: form, signal: timer.signal });
       } else {
         res = await fetch("/api/journal", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify(payload()),
+          signal: timer.signal,
         });
       }
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(typeof body.detail === "string" ? body.detail : "Couldn’t save that entry. Check the fields and try again.");
+        setError(describeFailure(res, body));
         return;
       }
       let extraProblem: string | null = null;
@@ -157,10 +184,10 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
         for (const f of files.slice(1)) {
           const form = new FormData();
           form.append("files", f);
-          const more = await fetch(`/api/attachments/${body.ids[0]}`, { method: "POST", body: form });
+          const more = await fetch(`/api/attachments/${body.ids[0]}`, { method: "POST", body: form, signal: timer.signal });
           if (!more.ok) {
             const b = await more.json().catch(() => ({}));
-            extraProblem = typeof b.detail === "string" ? b.detail : `${f.name} couldn’t be attached.`;
+            extraProblem = `${f.name}: ${describeFailure(more, b)}`;
           }
         }
       }
@@ -173,9 +200,14 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
       setMood(null);
       setEnergy(null);
       router.refresh();
-    } catch {
-      setError("Couldn’t reach the server. Nothing was saved.");
+    } catch (err) {
+      setError(
+        err instanceof DOMException && err.name === "AbortError"
+          ? "The upload took too long and was stopped. Check your connection. The entry may not have been saved."
+          : "Couldn’t reach the server. Nothing was saved.",
+      );
     } finally {
+      clearTimeout(timeout);
       setBusy(false);
     }
   }
@@ -202,7 +234,7 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
       </button>
 
       {open && (
-        <form onSubmit={submit} className="grid gap-4 px-5 pb-5">
+        <form onSubmit={submit} className="grid gap-4 px-5 pb-5 [&>*]:min-w-0">
           <Seg label="Entry type" value={kind} options={KINDS} onChange={(k) => { setKind(k); setError(null); }} />
 
           {kind === "habit" && (
@@ -291,13 +323,19 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
               className={`${field} min-h-[88px] resize-y font-normal`}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              maxLength={2000}
+              aria-describedby="note-count"
               placeholder={kind === "note" ? "Write it down while you remember it" : "Anything you want to remember about it"}
             />
           </label>
 
+          {note.length > NOTE_MAX * 0.8 && (
+            <p id="note-count" aria-live="polite" className={`-mt-2 text-right font-mono text-xs ${note.trim().length > NOTE_MAX ? "text-alert" : "text-ink-3"}`}>
+              {note.trim().length} / {NOTE_MAX}
+            </p>
+          )}
+
           {kind === "note" && (
-            <div className="grid gap-2">
+            <div className="grid min-w-0 gap-2">
               <input
                 ref={picker}
                 type="file"
@@ -328,15 +366,16 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
                 Attach photo or PDF
               </label>
               {files.length > 0 && (
-                <ul className="grid gap-1.5" aria-label="Attached files">
+                <ul className="grid min-w-0 gap-1.5" aria-label="Attached files">
                   {files.map((f, i) => (
-                    <li key={`${f.name}-${i}`} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-panel px-3 py-2 text-sm">
-                      <span className="min-w-0 truncate">{f.name}<span className="text-ink-3"> · {fileSize(f.size)}</span></span>
+                    <li key={`${f.name}-${i}`} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-line bg-panel px-3 py-2 text-sm">
+                      <span className="min-w-0 flex-1 truncate" title={f.name}>{f.name}</span>
+                      <span className="shrink-0 text-ink-3">{fileSize(f.size)}</span>
                       <button
                         type="button"
                         onClick={() => setFiles((all) => all.filter((_, j) => j !== i))}
                         aria-label={`Remove ${f.name}`}
-                        className="text-ink-3 hover:text-alert"
+                        className="shrink-0 text-ink-3 hover:text-alert"
                       >
                         Remove
                       </button>
@@ -348,14 +387,14 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
             </div>
           )}
 
-          <p role="alert" aria-live="polite" className={error ? "rounded-xl bg-alert-soft px-3.5 py-2.5 text-sm text-alert" : "sr-only"}>{error}</p>
+          <p ref={alertRef} role="alert" aria-live="polite" className={error ? "break-words rounded-xl bg-alert-soft px-3.5 py-2.5 text-sm text-alert" : "sr-only"}>{error}</p>
 
           <button
             type="submit"
             disabled={busy}
             className="rounded-xl bg-accent px-5 py-3 font-medium text-ground transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
           >
-            {busy ? "Saving…" : "Save entry"}
+            {busy ? (files.length > 0 && kind === "note" ? "Uploading…" : "Saving…") : "Save entry"}
           </button>
 
           {saved && (

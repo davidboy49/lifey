@@ -217,3 +217,18 @@ def test_backup_goes_stale_when_nothing_succeeds_for_a_day_and_a_half(pg):
     run(pg, 40, True)
     s = backup_status.status()
     assert s["state"] == "stale" and s["needs_attention"]
+
+
+def test_a_long_note_with_a_pdf_is_rejected_loudly_not_cut(client):
+    """A PDF plus a lot of detail used to lose everything past 2000 characters without a word."""
+    before = client.get("/api/journal", params={"days": 1}).json()["count"]
+    r = upload(client, [("files", ("labs.pdf", PDF, "application/pdf"))], note="x" * 2001)
+    assert r.status_code == 422
+    assert "2000" in r.json()["detail"] and "2001" in r.json()["detail"] and "Nothing was saved" in r.json()["detail"]
+    assert client.get("/api/journal", params={"days": 1}).json()["count"] == before      # no half-saved entry
+
+    exactly = upload(client, [("files", ("labs.pdf", PDF, "application/pdf"))], note="y" * 2000)
+    assert exactly.status_code == 201
+    day = client.get("/api/journal", params={"days": 1}).json()
+    notes = [e["note"] for g in day["groups"] if not g.get("empty") for e in g["entries"]]
+    assert "y" * 2000 in notes                                                          # stored in full
