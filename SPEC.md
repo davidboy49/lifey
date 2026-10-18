@@ -297,3 +297,11 @@ habits, adding notes. Logging is silent and undoable; anything that sets a commi
 - `deploy/deploy.sh` now refuses to start with under 3 GB free (override with MIN_FREE_GB). Deploys need ~1.5 GB scratch.
 - Open: other projects' leftovers (state-*.db copies, oe-hb deploy snapshots, old Claude CLI versions) await the owner; the
   real fix for memory (2.9 GB swap in use) and disk is a larger Hetzner plan.
+
+## 19. Legacy vidhealth retired (2026-10-18)
+- Removed: `/root/garmin-health`, `/root/health-mcp`, their six systemd units, the old venv and tokens.
+  Kept: its Postgres database, and an age-encrypted archive of the code and `data/revisions` (22 MB) on Drive
+  (`lifey-backups/legacy/`) plus a local copy in `/root/backups/`. Decrypt with the private key in `~/lifey-secrets/`.
+- `deploy/rollback.sh` now exits immediately: its steps disabled Lifey's own sync before failing.
+- Also cleaned: `/root/.agent-browser`, an old Claude CLI binary, two old oe-hb deploy snapshots, a leftover build container.
+  Disk 90% -> 85% (5.7 GB free). Still open: three `/root/state-*.db` recovery copies (652 MB) awaiting the owner.

@@ -2,6 +2,11 @@
 # Hand the bot and the Garmin sync back to the old vidhealth stack.
 # Anything logged through Lifey since the cutover stays in Lifey's database.
 set -euo pipefail
+# RETIRED 2026-10-18. The legacy vidhealth stack (units, code, venv) was removed from the VPS; an encrypted
+# archive of its code and data revisions is on Drive (lifey-backups/legacy/). Running the steps below would
+# stop Lifey's bot and DISABLE Lifey's sync timer, then fail to start units that no longer exist.
+echo "rollback.sh is retired: there is no legacy stack to hand back to. Nothing was changed." >&2
+exit 1
 cd "$(dirname "$0")/.."
 COMPOSE=(docker compose -f /opt/lifey/compose.prod.yml)
 

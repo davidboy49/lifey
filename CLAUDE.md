@@ -58,7 +58,7 @@ Read `SPEC.md` first. This file is the rule set. Place both files at the repo ro
   one-shot containers. TimesFM goes to production only if it wins AND fits; otherwise off-box.
 - Existing Phase 1-2 code (sync, quality, readiness, anomaly, bot, web) is tested and live:
   extend, do not rewrite. Reuse `readiness.baseline` rather than adding a second baseline function.
-- Do not touch the legacy bot's commands or the vidhealth bridge without asking.
+- The vidhealth legacy stack is retired (2026-10-18); the old bot's commands now live in Lifey's bot. Do not run deploy/rollback.sh (it exits).
 
 ## Decisions log
 - 2026-10-10: Extend existing repo; no n8n; second bot for the agent; Python only.
