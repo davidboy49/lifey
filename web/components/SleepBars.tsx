@@ -1,61 +1,106 @@
+"use client";
+import { useId } from "react";
+import { Bar, BarChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { HatchPattern, TICK, TipRow, TipShell, useReducedMotion } from "./chartKit";
 import type { SleepNight } from "@/lib/sleep";
+import { hm } from "@/lib/sleep";
 import { shortDay } from "@/lib/journal";
 
 // One bar per night, oldest to newest. A missing night is an empty dashed slot,
 // a partly recorded night is hatched grey, and neither is ever drawn as zero.
+interface Row extends SleepNight {
+  /** What the bar is drawn from. A missing night borrows a 2 h slot for its dashed outline only. */
+  plot: number;
+}
+
+const MISSING_SLOT_H = 2;
+
 export function SleepBars({ nights, target, incompleteBelow }: { nights: SleepNight[]; target: number; incompleteBelow: number }) {
-  const W = 760;
-  const H = 220;
-  const padL = 34;
-  const padR = 8;
-  const padT = 14;
-  const padB = 26;
-  const iw = W - padL - padR;
-  const ih = H - padT - padB;
+  const id = useId().replace(/:/g, "");
+  const reduced = useReducedMotion();
   const max = Math.max(10, Math.ceil(Math.max(target + 1, ...nights.map((n) => n.hours ?? 0))));
-  const slot = iw / nights.length;
-  const bar = Math.max(3, slot - 3);
-  const y = (h: number) => padT + ih - (h / max) * ih;
   const recorded = nights.filter((n) => n.kind === "recorded");
   const mean = recorded.length ? recorded.reduce((a, n) => a + (n.hours ?? 0), 0) / recorded.length : null;
+  const rows: Row[] = nights.map((n) => ({ ...n, plot: n.kind === "missing" ? MISSING_SLOT_H : (n.hours ?? 0) }));
+  const first = nights[0].date;
+  const lastDate = nights[nights.length - 1].date;
 
   const color = (n: SleepNight) =>
     n.hours === null ? "none" : n.hours >= target ? "var(--good)" : n.hours >= 6 ? "var(--watch)" : "var(--alert)";
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="block w-full" role="img" aria-label={`Hours slept per night, last ${nights.length} nights, against a ${target} hour target`}>
-      <defs>
-        <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-          <rect width="6" height="6" fill="var(--panel)" />
-          <line x1="0" y1="0" x2="0" y2="6" stroke="var(--ink-3)" strokeWidth="1.4" opacity="0.6" />
-        </pattern>
-      </defs>
-      {[0, 4, 8].filter((t) => t <= max).map((t) => (
-        <g key={t}>
-          <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} stroke="var(--line)" />
-          <text x={padL - 6} y={y(t) + 4} textAnchor="end" fontSize={12} fill="var(--ink-3)" style={{ fontFamily: "var(--font-mono)" }}>{t}h</text>
-        </g>
-      ))}
-      {nights.map((n, i) => {
-        const x = padL + i * slot + (slot - bar) / 2;
-        if (n.kind === "missing") {
-          return <rect key={n.date} x={x} y={y(2)} width={bar} height={y(0) - y(2)} rx={2} fill="none" stroke="var(--ink-3)" strokeDasharray="2 3" opacity="0.7"><title>{`${shortDay(n.date)}: no recording`}</title></rect>;
-        }
-        const h = n.hours ?? 0;
-        return (
-          <rect key={n.date} x={x} y={y(h)} width={bar} height={Math.max(2, y(0) - y(h))} rx={2}
-                fill={n.kind === "incomplete" ? "url(#hatch)" : color(n)} stroke={n.kind === "incomplete" ? "var(--ink-3)" : "none"}>
-            <title>{`${shortDay(n.date)}: ${h.toFixed(1)} h${n.kind === "incomplete" ? ` (under ${incompleteBelow} h, probably an incomplete recording)` : ""}`}</title>
-          </rect>
-        );
-      })}
-      <line x1={padL} x2={W - padR} y1={y(target)} y2={y(target)} stroke="var(--accent)" strokeWidth={1.5} strokeDasharray="5 4" />
-      <text x={W - padR} y={y(target) - 5} textAnchor="end" fontSize={12} fill="var(--accent)" style={{ fontFamily: "var(--font-mono)" }}>target {target.toFixed(1)} h</text>
-      {mean !== null && (
-        <line x1={padL} x2={W - padR} y1={y(mean)} y2={y(mean)} stroke="var(--ink-2)" strokeWidth={1} opacity={0.65} />
-      )}
-      <text x={padL} y={H - 6} fontSize={12} fill="var(--ink-3)" style={{ fontFamily: "var(--font-mono)" }}>{shortDay(nights[0].date)}</text>
-      <text x={W - padR} y={H - 6} textAnchor="end" fontSize={12} fill="var(--ink-3)" style={{ fontFamily: "var(--font-mono)" }}>{shortDay(nights[nights.length - 1].date)}</text>
-    </svg>
+    <div role="img" aria-label={`Hours slept per night, last ${nights.length} nights, against a ${target} hour target. Use the arrow keys to inspect a night.`}>
+      <ResponsiveContainer width="100%" height={240} initialDimension={{ width: 760, height: 240 }}>
+        <BarChart data={rows} margin={{ top: 14, right: 8, bottom: 0, left: 0 }} barCategoryGap="14%">
+          <defs>
+            <HatchPattern id={`${id}-hatch`} base="var(--panel)" />
+          </defs>
+          <CartesianGrid vertical={false} horizontalValues={[0, 4, 8].filter((t) => t <= max)} stroke="var(--line)" />
+          <XAxis
+            dataKey="date" ticks={[first, lastDate]} interval={0} axisLine={false} tickLine={false} tickMargin={10}
+            tick={({ x, y, payload }) => (
+              <text x={x} y={Number(y) + 8} textAnchor={payload.value === first ? "start" : "end"} {...TICK}>{shortDay(payload.value)}</text>
+            )}
+          />
+          <YAxis
+            width={34} domain={[0, max]} ticks={[0, 4, 8].filter((t) => t <= max)} axisLine={false} tickLine={false}
+            tickFormatter={(t) => `${t}h`} tick={TICK}
+          />
+          <Tooltip
+            isAnimationActive={false}
+            allowEscapeViewBox={{ x: false, y: true }}
+            wrapperStyle={{ outline: "none", zIndex: 20 }}
+            cursor={{ fill: "var(--ink-3)", fillOpacity: 0.12 }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const n = payload[0].payload as Row;
+              return (
+                <TipShell title={shortDay(n.date)}>
+                  {n.kind === "missing" ? (
+                    <p className="text-ink-2">No recording</p>
+                  ) : (
+                    <>
+                      <p className="font-mono text-ink">{hm(n.hours)}</p>
+                      {n.kind === "incomplete" && (
+                        <p className="text-ink-2">Under {incompleteBelow} h, probably an incomplete recording</p>
+                      )}
+                      {n.hours !== null && (
+                        <TipRow label="vs target" value={`${n.hours - target >= 0 ? "+" : "−"}${hm(Math.abs(n.hours - target)).replace(/^0 h /, "")}`} />
+                      )}
+                      {n.bed && n.wake && <TipRow label="Bed, wake" value={`${n.bed} – ${n.wake}`} />}
+                      {n.score !== null && <TipRow label="Sleep score" value={n.score} />}
+                      {n.hrv !== null && <TipRow label="HRV" value={`${Math.round(n.hrv)} ms`} />}
+                    </>
+                  )}
+                </TipShell>
+              );
+            }}
+          />
+          <Bar
+            dataKey="plot" isAnimationActive={!reduced} animationDuration={500} maxBarSize={26}
+            shape={(p: { x?: number; y?: number; width?: number; height?: number; payload?: Row }) => {
+              const { x = 0, y = 0, width = 0, height = 0, payload: n } = p;
+              if (!n) return <g />;
+              if (n.kind === "missing") {
+                return <rect x={x} y={y} width={width} height={height} rx={3} fill="none" stroke="var(--ink-3)" strokeDasharray="2 3" opacity={0.7} />;
+              }
+              const h = Math.max(2, height);
+              const incomplete = n.kind === "incomplete";
+              return (
+                <rect
+                  x={x} y={y + height - h} width={width} height={h} rx={3}
+                  fill={incomplete ? `url(#${id}-hatch)` : color(n)} stroke={incomplete ? "var(--ink-3)" : "none"}
+                />
+              );
+            }}
+          />
+          <ReferenceLine
+            y={target} stroke="var(--accent)" strokeWidth={1.5} strokeDasharray="5 4"
+            label={{ value: `target ${target.toFixed(1)} h`, position: "insideTopRight", fill: "var(--accent)", fontSize: 12, fontFamily: "var(--font-mono)" }}
+          />
+          {mean !== null && <ReferenceLine y={mean} stroke="var(--ink-2)" strokeOpacity={0.65} />}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
