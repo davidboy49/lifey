@@ -1,0 +1,9 @@
+[Unit]
+Description=Lifey: deploy origin/main when its CI is green
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/lifey
+ExecStart=/opt/lifey/deploy/auto-deploy.sh

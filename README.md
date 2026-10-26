@@ -121,3 +121,7 @@ Next milestones:
 5. PWA install and offline last-day view; cut over from vidhealth.
 
 Verified: 27 API tests pass against a real PostgreSQL 16 (the code uses nothing 18-specific; CI uses 18). Not verified: the Docker images and Compose stack have never been built (Docker is not installed on the authoring machine), and the sync has not run against a live Garmin account.
+
+### Auto deploy
+
+`lifey-autodeploy.timer` (every five minutes, `deploy/auto-deploy.sh`) fetches `origin/main` and, when it has moved and its CI run is green, runs `deploy/deploy.sh`. It deploys fast-forwards only, never from a red or unfinished CI. Install on the VPS: `sudo cp deploy/systemd/lifey-autodeploy.* /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now lifey-autodeploy.timer`. Logs: `journalctl -u lifey-autodeploy`. Stop it with `systemctl disable --now lifey-autodeploy.timer`.
