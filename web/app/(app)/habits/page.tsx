@@ -30,7 +30,7 @@ export default async function HabitsPage({ searchParams }: { searchParams: Promi
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow">Habits</p>
+          <p className="eyebrow">Bad habits</p>
           <h1 className="font-display text-[34px] font-semibold leading-tight tracking-tight sm:text-[44px]">
             {shortDay(d.days[0])} <span className="text-ink-3">to {shortDay(d.today)}</span>
           </h1>
@@ -59,6 +59,28 @@ export default async function HabitsPage({ searchParams }: { searchParams: Promi
 
       <QuitCard card={d.quit.card} strip={d.quit.strip} comeback={d.quit.comeback} />
 
+      <section className="card kind-habit grid gap-4 p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-display text-xl font-semibold">What I keep doing</h2>
+            <p className="mt-1 text-sm text-ink-2">Every square is a day. Filled means you did it, and darker means more.</p>
+          </div>
+          <Legend
+            items={[
+              { cls: "cell", text: "Clean" },
+              { cls: "cell cell-h1", text: "1" },
+              { cls: "cell cell-h2", text: "2" },
+              { cls: "cell cell-h3", text: "3 or more" },
+              { cls: "cell cell-unknown", text: "Nothing logged that day" },
+            ]}
+          />
+        </div>
+        <HabitGrid days={d.days} rows={shown} />
+        <p className="rounded-xl bg-panel px-3.5 py-2.5 text-sm text-ink-2">
+          Dashed days had no journal entries at all, so they are unknown rather than clean.
+        </p>
+      </section>
+
       <section className="card kind-checkin grid gap-4 p-5 sm:p-6">
         <div>
           <h2 className="font-display text-xl font-semibold">How did you wake up?</h2>
@@ -72,24 +94,6 @@ export default async function HabitsPage({ searchParams }: { searchParams: Promi
           <h3 className="font-medium">Waking feeling by days since a slip</h3>
           <FeelingByRun data={d.feeling.by_run} />
         </div>
-      </section>
-
-      <section className="card kind-habit grid gap-4 p-5 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-xl font-semibold">Sleep disruptors</h2>
-          <Legend
-            items={[
-              { cls: "cell", text: "Not logged" },
-              { cls: "cell cell-h1", text: "Some" },
-              { cls: "cell cell-h3", text: "More" },
-              { cls: "cell cell-unknown", text: "Nothing logged that day" },
-            ]}
-          />
-        </div>
-        <HabitGrid days={d.days} rows={shown} />
-        <p className="rounded-xl bg-panel px-3.5 py-2.5 text-sm text-ink-2">
-          Dashed days had no journal entries at all, so they are unknown rather than clean.
-        </p>
       </section>
 
       <section className="card kind-checkin grid gap-4 p-5 sm:p-6">

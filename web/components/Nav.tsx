@@ -12,7 +12,7 @@ const ITEMS = [
   { href: "/", label: "Today", d: "M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6l1.4 1.4m10 10 1.4 1.4m0-12.8L17 7M7 17l-1.4 1.4M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" },
   { href: "/journal", label: "Journal", d: "M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6V3Zm0 0v18M10 8h5M10 12h5" },
   { href: "/sleep", label: "Sleep", d: "M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8Z" },
-  { href: "/habits", label: "Habits", d: "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6" },
+  { href: "/habits", label: "Bad habits", d: "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6" },
   { href: "/review", label: "Review", d: "M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h9" },
   { href: "/learning", label: "Learning", d: "M3 8l9-4 9 4-9 4-9-4Zm4 2.5V15c0 1.4 2.2 3 5 3s5-1.6 5-3v-4.5M21 8v6" },
   { href: "/trends", label: "Trends", d: "M3 17l5-6 4 3 8-9M3 21h18" },

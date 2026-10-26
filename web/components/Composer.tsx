@@ -31,7 +31,7 @@ function fileSize(bytes: number): string {
 
 const KINDS: { key: Kind; label: string }[] = [
   { key: "note", label: "Note" },
-  { key: "habit", label: "Habit" },
+  { key: "habit", label: "Bad habit" },
   { key: "quit", label: "Quit" },
   { key: "checkin", label: "Check-in" },
 ];
@@ -137,7 +137,7 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
   }
 
   function validate(): string | null {
-    if (isHabit && !habitName) return "Name the habit first.";
+    if (isHabit && !habitName) return "Name the bad habit first.";
     if (kind === "note" && !note.trim() && files.length === 0) return "Write the note first, or attach a file.";
     if (kind === "checkin" && mood === null && energy === null) return "Pick a mood or an energy level.";
     if (day > today) return "That date is in the future.";
@@ -239,7 +239,7 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
 
           {kind === "habit" && (
             <>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Habit">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Bad habit">
                 {[...habits.map((x) => x.label), "Custom"].map((h) => (
                   <button
                     key={h}
@@ -253,7 +253,7 @@ export function Composer({ today, nowTime, habits = DEFAULT_HABITS }: {
                 ))}
               </div>
               {habit === "Custom" && (
-                <input className={field} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="e.g. sauna, cold plunge, fasting" aria-label="Habit name" maxLength={48} />
+                <input className={field} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="e.g. doomscrolling, energy drink, night snacking" aria-label="Bad habit name" maxLength={48} />
               )}
               <label className="grid gap-1.5 text-sm font-medium" htmlFor="amount">
                 How much ({unit})

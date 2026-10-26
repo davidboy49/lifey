@@ -89,7 +89,7 @@ export default async function TodayPage() {
         </h2>
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {t.metrics.map((m, i) => (
-            <MetricCard key={m.key} m={m} delay={120 + i * 60} />
+            <MetricCard key={m.key} m={m} endDate={t.date} delay={120 + i * 60} />
           ))}
         </div>
       </section>

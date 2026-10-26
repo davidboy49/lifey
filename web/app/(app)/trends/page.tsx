@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { ApiDown } from "@/components/ApiDown";
 import { Provenance, TONE } from "@/components/Provenance";
-import { Spark } from "@/components/Spark";
+import { TrendChart } from "@/components/TrendChart";
 import { getToday } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export default async function TrendsPage() {
         </h1>
         <p className="mt-2 max-w-[60ch] text-ink-2">
           The shaded band is your normal range for each signal. Short ticks along the bottom mark days with no
-          reading; the line breaks there instead of guessing.
+          reading; the line breaks there instead of guessing. Hover, tap or use the arrow keys to read a day.
         </p>
       </header>
 
@@ -36,7 +36,7 @@ export default async function TrendsPage() {
                 <Provenance kind={m.provenance} />
               </div>
             </div>
-            <div className="max-w-[760px]"><Spark metric={m} color={TONE[m.status].fg} width={520} height={210} axis /></div>
+            <TrendChart metric={m} color={TONE[m.status].fg} endDate={t.date} />
           </section>
         ))}
       </div>

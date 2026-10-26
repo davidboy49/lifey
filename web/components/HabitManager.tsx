@@ -18,7 +18,7 @@ export function HabitManager({ habits }: { habits: CatalogHabit[] }) {
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    if (!label.trim()) return setError("Give the habit a name.");
+    if (!label.trim()) return setError("Name the bad habit first.");
     setBusy(true);
     setError(null);
     try {
@@ -50,10 +50,10 @@ export function HabitManager({ habits }: { habits: CatalogHabit[] }) {
   return (
     <section className="card grid gap-5 p-5 sm:p-6">
       <div>
-        <h2 className="font-display text-xl font-semibold">Your habits</h2>
+        <h2 className="font-display text-xl font-semibold">Bad habits you track</h2>
         <p className="mt-1 max-w-[62ch] text-sm text-ink-2">
-          The built-in list covers sleep disruptors. Add anything else you want to watch. A cue is optional: say when it tends to happen
-          and what you would do instead, and it appears in your weekly review.
+          The built-in list covers the usual sleep disruptors. Add any other habit you keep doing and want to cut back. A cue is optional:
+          say when it tends to happen and what you would do instead, and it appears in your weekly review.
         </p>
       </div>
 
@@ -78,7 +78,7 @@ export function HabitManager({ habits }: { habits: CatalogHabit[] }) {
       <form onSubmit={add} className="grid gap-3 sm:grid-cols-2">
         <label className="grid gap-1.5 text-sm font-medium" htmlFor="h-label">
           Name
-          <input id="h-label" className={field} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Cold plunge" maxLength={48} />
+          <input id="h-label" className={field} value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Doomscrolling" maxLength={48} />
         </label>
         <label className="grid gap-1.5 text-sm font-medium" htmlFor="h-unit">
           Counted in
@@ -94,7 +94,7 @@ export function HabitManager({ habits }: { habits: CatalogHabit[] }) {
         </label>
         <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
           <button type="submit" disabled={busy} className="rounded-xl bg-accent px-5 py-2.5 font-medium text-ground hover:opacity-90 disabled:opacity-60">
-            {busy ? "Adding…" : "Add habit"}
+            {busy ? "Adding…" : "Add bad habit"}
           </button>
           <p role="alert" className={error ? "text-sm text-alert" : "sr-only"}>{error}</p>
         </div>

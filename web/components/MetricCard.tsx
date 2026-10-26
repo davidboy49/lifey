@@ -6,7 +6,7 @@ function fmt(n: number) {
   return Math.abs(n) >= 1000 ? Math.round(n).toLocaleString("en-US") : String(n);
 }
 
-export function MetricCard({ m, delay = 0 }: { m: Metric; delay?: number }) {
+export function MetricCard({ m, endDate, delay = 0 }: { m: Metric; endDate?: string; delay?: number }) {
   const tone = TONE[m.status];
   const missing = m.value === null;
 
@@ -37,7 +37,7 @@ export function MetricCard({ m, delay = 0 }: { m: Metric; delay?: number }) {
               </span>
             )}
           </div>
-          <Spark metric={m} color={tone.fg} />
+          <Spark metric={m} color={tone.fg} endDate={endDate} />
         </>
       )}
 
