@@ -11,12 +11,15 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 # field, question, options [(label, value)], journal habit tag (or None)
 STEPS = [
-    ("alcohol_units", "🍺 Any alcohol today?", [("None", 0), ("1 drink", 1), ("2", 2), ("3+", 3)], "alcohol"),
+    ("alcohol_units", "🍺 Any alcohol today?", [("None", 0), ("1 drink", 1), ("2", 2), ("3", 3)], "alcohol"),
     ("late_caffeine", "☕ Caffeine after 2pm?", [("No", 0), ("Yes", 1)], "late_caffeine"),
     ("late_meal", "🍽 A big meal within 3 hours of bed?", [("No", 0), ("Yes", 1)], "late_meal"),
     ("rpe", "💪 How hard was today's workout?", [("No workout", 0), ("Easy", 3), ("Medium", 6), ("Hard", 8)], None),
 ]
 FIELDS = [s[0] for s in STEPS]
+TYPED_FIELDS = {"alcohol_units"}   # offer "More…": the user types the exact number
+TYPE_IN = "more"
+MAX_DRINKS = 30                    # matches the CHECK constraint on journal.checkins.alcohol_units
 _LABELS = {field: {value: label for label, value in options} for field, _, options, _ in STEPS}
 
 
@@ -28,7 +31,18 @@ def keyboard(day: str, index: int) -> InlineKeyboardMarkup:
     field, _, options, _ = STEPS[index]
     row = [InlineKeyboardButton(label, callback_data=f"ci:{day}:{field}:{value}") for label, value in options]
     skip = InlineKeyboardButton("Skip", callback_data=f"ci:{day}:{field}:skip")
+    if field in TYPED_FIELDS:
+        row.append(InlineKeyboardButton("More…", callback_data=f"ci:{day}:{field}:{TYPE_IN}"))
     return InlineKeyboardMarkup([row, [skip]])
+
+
+def parse_count(text: str) -> float | None:
+    """A typed drink count, e.g. "5" or "4.5"; None if it is not a number in the allowed range."""
+    try:
+        value = float(text.strip().replace(",", "."))
+    except ValueError:
+        return None
+    return value if 0 <= value <= MAX_DRINKS else None
 
 
 def question(day: str, index: int) -> tuple[str, InlineKeyboardMarkup]:
@@ -46,6 +60,8 @@ def parse(data: str) -> tuple[str, str, str | None] | None:
         return None
     if raw == "skip":
         return day, field, None
+    if raw == TYPE_IN and field in TYPED_FIELDS:
+        return day, field, raw
     allowed = {str(v) for _, v in next(o for f, _, o, _ in STEPS if f == field)}
     return (day, field, raw) if raw in allowed else None
 
@@ -65,7 +81,7 @@ def summary(row: dict | None) -> str:
         key = int(value) if isinstance(value, (int, float)) and float(value).is_integer() else value
         if isinstance(value, bool):
             key = int(value)
-        label = _LABELS[field].get(key, str(value))
+        label = _LABELS[field].get(key, f"{value:g}" if isinstance(value, (int, float)) else str(value))
         name = {"alcohol_units": "Alcohol", "late_caffeine": "Late caffeine", "late_meal": "Late meal",
                 "rpe": "Workout"}[field]
         lines.append(f"• {name}: {label}")

@@ -39,8 +39,12 @@ def test_saving_answers_keeps_unanswered_fields_null(pg):
         db.save_checkin_answer(today, "date; DROP TABLE x", 1)
 
 
+def CTX():
+    return SimpleNamespace(user_data={})
+
+
 def _query(data):
-    message = SimpleNamespace()
+    message = SimpleNamespace(edit_text=AsyncMock())
     q = SimpleNamespace(data=data, edit_message_text=AsyncMock(), message=message)
     return q
 
@@ -51,7 +55,7 @@ def test_yes_is_mirrored_once_into_habits_and_flow_walks_to_the_summary(pg):
     last = None
     for field, value in steps:
         last = _query(f"ci:{today}:{field}:{value}")
-        asyncio.run(bot.checkin_answer(last, last.data))
+        asyncio.run(bot.checkin_answer(last, last.data, CTX()))
     habits = [l for l in db.get_activity_logs(today) if l["category"] == "unholy_habit"]
     assert sorted(h["tag"] for h in habits) == ["alcohol", "late_caffeine"]
     assert next(h for h in habits if h["tag"] == "alcohol")["value"] == 2.0
@@ -61,7 +65,7 @@ def test_yes_is_mirrored_once_into_habits_and_flow_walks_to_the_summary(pg):
 
     # answering the same question again does not log the habit twice
     again = _query(f"ci:{today}:alcohol_units:3")
-    asyncio.run(bot.checkin_answer(again, again.data))
+    asyncio.run(bot.checkin_answer(again, again.data, CTX()))
     alcohol = [l for l in db.get_activity_logs(today) if l.get("tag") == "alcohol"]
     assert len(alcohol) == 1 and db.get_checkin(today)["alcohol_units"] == 3.0
 
@@ -69,7 +73,7 @@ def test_yes_is_mirrored_once_into_habits_and_flow_walks_to_the_summary(pg):
 def test_a_none_answer_logs_no_habit(pg):
     today = quality.today().isoformat()
     q = _query(f"ci:{today}:alcohol_units:0")
-    asyncio.run(bot.checkin_answer(q, q.data))
+    asyncio.run(bot.checkin_answer(q, q.data, CTX()))
     assert [l for l in db.get_activity_logs(today) if l["category"] == "unholy_habit"] == []
     assert db.get_checkin(today)["alcohol_units"] == 0.0
     # and the next question is the caffeine one
@@ -119,3 +123,24 @@ def test_feelings_by_day_only_include_rated_days(pg):
     db.save_checkin_answer("2026-10-10", "wake_feeling", 5)
     db.save_checkin_answer("2026-10-11", "rpe", 3)
     assert db.get_wake_feelings("2026-10-09", "2026-10-12") == {"2026-10-10": 5}
+
+
+def test_more_button_takes_an_exact_typed_drink_count(pg):
+    today = quality.today().isoformat()
+    assert checkin.parse(f"ci:{today}:alcohol_units:more") == (today, "alcohol_units", "more")
+    assert checkin.parse(f"ci:{today}:rpe:more") is None
+    assert checkin.parse_count("5") == 5.0 and checkin.parse_count("4,5") == 4.5
+    assert checkin.parse_count("abc") is None and checkin.parse_count("31") is None and checkin.parse_count("-1") is None
+
+    ctx = CTX()
+    q = _query(f"ci:{today}:alcohol_units:more")
+    asyncio.run(bot.checkin_answer(q, q.data, ctx))
+    assert ctx.user_data["checkin_typed"]["field"] == "alcohol_units"
+    assert db.get_checkin(today) is None                              # nothing saved until the number arrives
+
+    pending = ctx.user_data["checkin_typed"]
+    asyncio.run(bot._finish_checkin_step(pending["message"].edit_text, pending["day"], pending["field"], 6.0))
+    assert db.get_checkin(today)["alcohol_units"] == 6.0
+    assert "Caffeine" in q.message.edit_text.call_args.args[0]
+    alcohol = [l for l in db.get_activity_logs(today) if l.get("tag") == "alcohol"]
+    assert len(alcohol) == 1 and alcohol[0]["value"] == 6.0
