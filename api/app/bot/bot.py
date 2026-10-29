@@ -462,7 +462,8 @@ def get_alcohol_keyboard():
         [
             InlineKeyboardButton("🍺 1 Drink", callback_data="log_habit:alcohol:1:1 standard drink"),
             InlineKeyboardButton("🍷 2 Drinks", callback_data="log_habit:alcohol:2:2 standard drinks"),
-            InlineKeyboardButton("🍾 3+ Drinks", callback_data="log_habit:alcohol:3:3+ drinks")
+            InlineKeyboardButton("🍾 3 Drinks", callback_data="log_habit:alcohol:3:3 standard drinks"),
+            InlineKeyboardButton("More…", callback_data="habit_more:alcohol")
         ],
         [
             InlineKeyboardButton("🔙 Back to Habits", callback_data="menu_unholy")
@@ -1169,6 +1170,22 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await COMMANDS[KEYBOARD_BUTTONS[text]](update, context)
         return
 
+    habit = context.user_data.get("habit_typed")
+    if habit:
+        count = checkin.parse_count(text)
+        if count is None:
+            await update.message.reply_text(f"Send a number between 0 and {checkin.MAX_DRINKS}.")
+            return
+        context.user_data.pop("habit_typed")
+        today_str = quality.today().isoformat()
+        note = f"{count:g} standard drinks"
+        log_id = db.log_activity(date_str=today_str, category="unholy_habit", tag=habit["tag"], note=note, value=count)
+        await update.message.reply_text(
+            f"✅ <b>Unholy Habit Logged!</b>\n\n😈 <b>Habit:</b> {habit['tag'].title()} ({count})\n"
+            f"📅 <b>Date:</b> <code>{today_str}</code>\n📝 <b>Details:</b> {note}",
+            reply_markup=undo_keyboard(log_id), parse_mode="HTML")
+        return
+
     pending = context.user_data.get("checkin_typed")
     if pending:
         count = checkin.parse_count(text)
@@ -1385,6 +1402,11 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             ])
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
             
+        elif data == "habit_more:alcohol":
+            context.user_data["habit_typed"] = {"tag": "alcohol"}
+            await query.edit_message_text(
+                f"How many standard drinks? Reply with the exact number (0-{checkin.MAX_DRINKS}).")
+
         elif data.startswith("log_habit:"):
             parts = data.split(":")
             tag = parts[1]
