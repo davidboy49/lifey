@@ -462,7 +462,8 @@ def get_alcohol_keyboard():
         [
             InlineKeyboardButton("🍺 1 Drink", callback_data="log_habit:alcohol:1:1 standard drink"),
             InlineKeyboardButton("🍷 2 Drinks", callback_data="log_habit:alcohol:2:2 standard drinks"),
-            InlineKeyboardButton("🍾 3+ Drinks", callback_data="log_habit:alcohol:3:3+ drinks")
+            InlineKeyboardButton("🍾 3 Drinks", callback_data="log_habit:alcohol:3:3 standard drinks"),
+            InlineKeyboardButton("More…", callback_data="habit_more:alcohol")
         ],
         [
             InlineKeyboardButton("🔙 Back to Habits", callback_data="menu_unholy")
@@ -846,12 +847,23 @@ async def feeling_answer(query, data: str) -> None:
 REMINDER_JOBS.update({"evening_checkin": habit_checkin})
 
 
-async def checkin_answer(query, data: str) -> None:
+async def checkin_answer(query, data: str, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Save the tapped answer, mirror a "yes" into the journal, and show the next question or the summary."""
     parsed = checkin.parse(data)
     if not parsed:
         return
     day, field, raw = parsed
+    if raw == checkin.TYPE_IN:
+        # Wait for the user's next text message to carry the exact number.
+        context.user_data["checkin_typed"] = {"day": day, "field": field, "message": query.message}
+        await query.edit_message_text(
+            f"{checkin.STEPS[checkin.step_index(field)][1]}\n\nReply with the exact number (0-{checkin.MAX_DRINKS}).",
+            parse_mode="HTML")
+        return
+    await _finish_checkin_step(query.edit_message_text, day, field, raw)
+
+
+async def _finish_checkin_step(edit, day: str, field: str, raw) -> None:
     if raw is not None:
         await asyncio.to_thread(db.save_checkin_answer, day, field, float(raw))
         tag = checkin.habit_tag(field)
@@ -863,10 +875,10 @@ async def checkin_answer(query, data: str) -> None:
     nxt = checkin.step_index(field) + 1
     if nxt < len(checkin.STEPS):
         text, markup = checkin.question(day, nxt)
-        await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
+        await edit(text, reply_markup=markup, parse_mode="HTML")
         return
     row = await asyncio.to_thread(db.get_checkin, day)
-    await query.edit_message_text(f"✅ <b>Check-in saved</b> · {day}\n\n{checkin.summary(row)}", parse_mode="HTML")
+    await edit(f"✅ <b>Check-in saved</b> · {day}\n\n{checkin.summary(row)}", parse_mode="HTML")
 
 
 def bank_import_enabled() -> bool:
@@ -1158,6 +1170,32 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await COMMANDS[KEYBOARD_BUTTONS[text]](update, context)
         return
 
+    habit = context.user_data.get("habit_typed")
+    if habit:
+        count = checkin.parse_count(text)
+        if count is None:
+            await update.message.reply_text(f"Send a number between 0 and {checkin.MAX_DRINKS}.")
+            return
+        context.user_data.pop("habit_typed")
+        today_str = quality.today().isoformat()
+        note = f"{count:g} standard drinks"
+        log_id = db.log_activity(date_str=today_str, category="unholy_habit", tag=habit["tag"], note=note, value=count)
+        await update.message.reply_text(
+            f"✅ <b>Unholy Habit Logged!</b>\n\n😈 <b>Habit:</b> {habit['tag'].title()} ({count})\n"
+            f"📅 <b>Date:</b> <code>{today_str}</code>\n📝 <b>Details:</b> {note}",
+            reply_markup=undo_keyboard(log_id), parse_mode="HTML")
+        return
+
+    pending = context.user_data.get("checkin_typed")
+    if pending:
+        count = checkin.parse_count(text)
+        if count is None:
+            await update.message.reply_text(f"Send a number between 0 and {checkin.MAX_DRINKS}.")
+            return
+        context.user_data.pop("checkin_typed")
+        await _finish_checkin_step(pending["message"].edit_text, pending["day"], pending["field"], count)
+        return
+
     today_str = quality.today().isoformat()
     log_id = db.log_activity(
         date_str=today_str,
@@ -1206,7 +1244,7 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             return
 
         if data.startswith("ci:"):
-            await checkin_answer(query, data)
+            await checkin_answer(query, data, context)
             return
 
         if data.startswith("export:"):
@@ -1364,6 +1402,11 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             ])
             await query.edit_message_text(text, reply_markup=keyboard, parse_mode="HTML")
             
+        elif data == "habit_more:alcohol":
+            context.user_data["habit_typed"] = {"tag": "alcohol"}
+            await query.edit_message_text(
+                f"How many standard drinks? Reply with the exact number (0-{checkin.MAX_DRINKS}).")
+
         elif data.startswith("log_habit:"):
             parts = data.split(":")
             tag = parts[1]
