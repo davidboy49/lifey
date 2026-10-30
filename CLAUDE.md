@@ -31,7 +31,8 @@ Read `SPEC.md` first. This file is the rule set. Place both files at the repo ro
    "tomorrow = today" baseline (and 7-day mean).
 6. Monthly retrain; promote a new model only if it beats the current one on the last 30 days.
 7. Security: Postgres never public; both bots locked to `TELEGRAM_CHAT_ID`; secrets only in `.env`
-   (never committed, never printed); daily encrypted DB backup off-box with a restore drill.
+   (never committed, never printed); weekly DB backup off-box with a restore drill
+   (plaintext by the owner's choice since 2026-10-19; `.env` and Garmin tokens are not uploaded).
 8. Agent output: morning briefing <= 3 lines + exactly ONE action. Recovery mode auto-triggers
    after a detected crash night.
 9. The agent never diagnoses. Symptoms, medication or anything clinical -> tell him to see a doctor.
