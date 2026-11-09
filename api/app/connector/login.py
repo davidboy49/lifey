@@ -43,9 +43,10 @@ button.go{{background:var(--acc);border-color:var(--acc);color:#fff}}
 <p>Sign in to let it <strong>read</strong> your health, journal and habits.</p>
 <ul><li>Daily metrics, sleep and activities</li><li>Journal entries and notes</li><li>Habit logs</li></ul>
 <label class="opt"><input type="checkbox" name="write" value="1" form="f">
-<span>Also let it <strong>log learning sessions</strong> and <strong>suggest</strong> studies, a monthly focus
-and a weekly quest. Suggestions wait for your approval in Lifey; sessions can be undone. It still cannot
-delete or edit anything else, or write your notes and reflections.</span></label>
+<span>Also let it <strong>log learning sessions</strong>, <strong>add an event review</strong> you dictate,
+and <strong>suggest</strong> studies, a monthly focus and a weekly quest. Suggestions wait for your approval in
+Lifey; sessions and reviews can be undone. It still cannot delete or edit anything else, or write your journal
+notes and reflections in the weekly review.</span></label>
 <form id="f" method="post" action="/oauth/login" autocomplete="on">
 <input type="hidden" name="request" value="{request}">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" required autofocus>

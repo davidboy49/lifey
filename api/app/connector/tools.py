@@ -7,12 +7,13 @@ guessing. Free-text notes are the person's own words and are returned as data.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 from statistics import mean
 
 from .. import data_routes
 from ..health import quality
 from ..journal import entries as e
+from ..journal import event_reviews as ev
 
 MAX_DAYS = 365
 DEFAULT_DAYS = 14
@@ -206,3 +207,33 @@ def learning() -> dict:
                  "lifey_propose_study; it waits in an inbox for the person to accept. Otherwise give them the "
                  "citations to keep on the Learning page."),
     }
+
+
+def _review_out(r: dict, full: bool) -> dict:
+    keep = ("id", "date", "event", "mood", "energy", "loop_tags", "lesson")
+    out = {k: r[k] for k in keep if r.get(k) not in (None, "")}
+    out["loop_tags"] = r["loop_tags"]
+    if full:
+        out.update({k: r[k] for k in ("notes", "went_well", "would_change") if r.get(k)})
+        out["photos"] = len(r.get("photos") or [])
+    return out
+
+
+def list_reviews(start: str | None = None, end: str | None = None, loop_tag: str | None = None) -> dict:
+    """Event reviews newest first, optionally within [start, end] and for one loop tag."""
+    try:
+        first = date.fromisoformat(start) if start else None
+        last = date.fromisoformat(end) if end else None
+    except ValueError as exc:
+        raise ValueError("Use dates like 2026-11-09.") from exc
+    rows = ev.list_reviews(first, last, loop_tag, limit=MAX_ROWS)
+    return {"count": len(rows), "loop_tag_counts": ev.tag_counts(rows), "loop_tags": ev.LOOP_TAGS,
+            "reviews": [_review_out(r, full=False) for r in rows]}
+
+
+def get_review(review_id: int) -> dict | None:
+    """One event review in full, with that day's Garmin numbers next to it (not stored in the review)."""
+    r = ev.get(int(review_id))
+    if r is None:
+        return None
+    return {**_review_out(r, full=True), "day_data": ev.day_data(date.fromisoformat(r["date"]))}

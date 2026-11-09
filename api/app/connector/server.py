@@ -35,10 +35,11 @@ INSTRUCTIONS = (
     "Missing values mean no data, never zero. Describe patterns as observations from one person's data, not "
     "causes, and do not diagnose; suggest a clinician for health worries. Dates are in the person's local time. "
     "Writes are limited: lifey_log_learning_session records minutes the person says they studied (use a request_id "
-    "so a retry is not logged twice), and the lifey_propose_* tools put a suggestion in an inbox that the person "
+    "so a retry is not logged twice), lifey_create_review adds an event review in the person's own words, and the "
+    "lifey_propose_* tools put a suggestion in an inbox that the person "
     "accepts or rejects in Lifey. Nothing proposed has taken effect. Never invent a study: only propose one you "
     "found, with a working link, and say what it is and is not evidence for. You cannot close a focus, write the "
-    "person's reflection or recall, or edit or delete anything."
+    "person's weekly reflection or recall, or edit or delete anything."
 )
 
 
@@ -116,6 +117,45 @@ def build():
         the studies already kept. Use it to look for research on how to learn that topic better. Only the topic
         and outcome are shared, never journal notes."""
         return await asyncio.to_thread(tools.learning)
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def lifey_list_reviews(start: str | None = None, end: str | None = None,
+                                 loop_tag: str | None = None) -> dict:
+        """Event reviews (the person's look back on one event or day), newest first: date, event name, mood and
+        energy 1 to 5, loop tags and the one-line lesson. Filters: `start`/`end` (YYYY-MM-DD, inclusive) and
+        `loop_tag` (loneliness, urge, drinking, stress, pois or poor_sleep). Includes how often each tag was
+        ticked in the result. A missing mood or energy was not answered."""
+        try:
+            return await asyncio.to_thread(tools.list_reviews, start, end, loop_tag)
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
+
+    @mcp.tool(annotations=READ_ONLY)
+    async def lifey_get_review(review_id: int) -> dict:
+        """One event review in full (notes, what went well, what they would change, lesson, loop tags) with
+        that day's Garmin sleep, HRV, resting HR, readiness, body battery and activities next to it."""
+        found = await asyncio.to_thread(tools.get_review, review_id)
+        if found is None:
+            raise ToolError("No review with that id.")
+        return found
+
+    @mcp.tool(annotations=WRITES)
+    async def lifey_create_review(event: str, date: str, mood: int | None = None, energy: int | None = None,
+                                  notes: str = "", went_well: str = "", would_change: str = "",
+                                  loop_tags: list[str] | None = None, lesson: str = "",
+                                  request_id: str | None = None) -> dict:
+        """Add an event review the person dictates: `event` is their own name for it (e.g. "10 km race"),
+        `date` YYYY-MM-DD (at most 400 days back). Optional: mood and energy 1 to 5, notes, went_well,
+        would_change (up to 2000 characters each), loop_tags from loneliness, urge, drinking, stress, pois,
+        poor_sleep, and a one-line lesson (200 characters). Write only what they said; never fill a field in
+        for them. It adds a new review and can be undone in Lifey. Pass a stable `request_id` so a retry does
+        not add it twice. Needs the write permission."""
+        client = write_client()
+        try:
+            return await asyncio.to_thread(writes.create_review, client, event, date, mood, energy, notes,
+                                           went_well, would_change, loop_tags, lesson, request_id)
+        except writes.Refused as exc:
+            raise ToolError(str(exc)) from exc
 
     @mcp.tool(annotations=WRITES)
     async def lifey_log_learning_session(minutes: float, date: str | None = None,

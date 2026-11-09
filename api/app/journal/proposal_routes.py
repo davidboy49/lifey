@@ -7,7 +7,7 @@ from .. import db
 from ..auth.deps import current_user
 from ..bot import store
 from ..health import quality
-from . import proposals
+from . import event_reviews, proposals
 
 router = APIRouter(prefix="/api", tags=["connector"], dependencies=[Depends(current_user)])
 
@@ -43,13 +43,15 @@ def _activity(limit: int = 40) -> list[dict]:
                       (a.ref_kind = 'activity_log' AND a.undone_at IS NULL
                          AND EXISTS (SELECT 1 FROM journal.activity_logs l WHERE l.id = a.ref_id)) AS log_alive,
                       (SELECT p.status FROM journal.proposals p WHERE a.ref_kind = 'proposal' AND p.id = a.ref_id)
-                        AS proposal_status
+                        AS proposal_status,
+                      (a.ref_kind = 'event_review' AND a.undone_at IS NULL
+                         AND EXISTS (SELECT 1 FROM journal.event_reviews r WHERE r.id = a.ref_id)) AS review_alive
                FROM journal.connector_audit a ORDER BY a.at DESC, a.id DESC LIMIT %s""", (limit,))
         names = [c.name for c in cur.description]
         rows = [dict(zip(names, r)) for r in cur.fetchall()]
     for r in rows:
-        r["can_undo"] = bool(r["log_alive"]) or r["proposal_status"] == "pending"
-        del r["log_alive"]
+        r["can_undo"] = bool(r["log_alive"]) or bool(r["review_alive"]) or r["proposal_status"] == "pending"
+        del r["log_alive"], r["review_alive"]
     return rows
 
 
@@ -70,6 +72,8 @@ def undo(audit_id: int) -> dict:
         done = store.delete_activity_log(ref)
     elif kind == "proposal":
         done = proposals.reject(ref)
+    elif kind == "event_review":
+        done = event_reviews.delete(ref)
     else:
         done = False
     if not done:

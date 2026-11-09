@@ -74,6 +74,8 @@ Read `SPEC.md` first. This file is the rule set. Place both files at the repo ro
 - 2026-10-15: Owner overrode the 30-day freeze for one feature: the learning thread (monthly focus, weekly recall, evidence shelf). Scope: skills of any kind (tech, life, sport, money, investing). Shelf is on demand via the Claude connector. Only topic and outcome leave the app, never notes or recall text.
 - 2026-10-15: Claude connector may write, within fixed limits (owner chose silent logging, confirm-first for commitments). Separate scope `lifey:write`, granted only by ticking the capture box on the consent page. Allowed: log a learning session (undoable); propose a study, a monthly focus or a weekly quest into an inbox the owner accepts on the web. Never: close a focus, the review reflection or recall, journal notes, other habits, edit or delete. Every write is audited, rate-limited (60/hour), idempotent by request id, and listed in Settings with undo.
 
+- 2026-11-09: Owner overrode the 30-day freeze for one feature: event reviews (`/reviews`): look back on one event or day (own name + date, mood/energy 1-5, went well, would change, loop tags loneliness/urge/drinking/stress/pois/poor_sleep, one-line lesson, photos). The day's Garmin numbers are shown, never stored on the review. Owner also allowed the Claude connector to ADD an event review (`lifey_create_review`, `lifey:write`, audited, rate-limited, idempotent, undoable); it still cannot edit or delete one. Reviews are never sent to the DeepSeek agent.
+
 ## Open items (resolve in Phase 1)
 - Live row count and gap report for `health.daily_metrics`.
 - Is the vidhealth bridge still the only Garmin client? Cut over or keep?

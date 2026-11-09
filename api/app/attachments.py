@@ -116,7 +116,7 @@ def prepare(data: bytes, filename: str | None) -> dict:
             "height": height, "thumb": thumb}
 
 
-def _write(directory: Path, name: str, data: bytes) -> None:
+def write_file(directory: Path, name: str, data: bytes) -> None:
     target = directory / name[:2]
     target.mkdir(parents=True, exist_ok=True)
     tmp = target / f".{name}.part"
@@ -124,13 +124,23 @@ def _write(directory: Path, name: str, data: bytes) -> None:
     os.replace(tmp, target / name)
 
 
-def _path(name: str) -> Path:
+def file_path(name: str) -> Path:
     return root() / name[:2] / name
+
+
+_write, _path = write_file, file_path
+
+
+def used(conn) -> int:
+    """Bytes stored for journal attachments and event-review photos, which share one cap."""
+    return int(conn.execute(
+        "SELECT (SELECT COALESCE(SUM(bytes), 0) FROM journal.attachments)"
+        " + (SELECT COALESCE(SUM(bytes), 0) FROM journal.event_review_photos)").fetchone()[0])
 
 
 def used_bytes() -> int:
     with db.connect() as conn:
-        return int(conn.execute("SELECT COALESCE(SUM(bytes), 0) FROM journal.attachments").fetchone()[0])
+        return used(conn)
 
 
 def save(log_id: int, prepared: dict) -> dict:
@@ -142,8 +152,7 @@ def save(log_id: int, prepared: dict) -> dict:
         count = conn.execute("SELECT count(*) FROM journal.attachments WHERE log_id=%s", (log_id,)).fetchone()[0]
         if count >= MAX_PER_ENTRY:
             raise Rejected(f"An entry can hold up to {MAX_PER_ENTRY} files.")
-        used = int(conn.execute("SELECT COALESCE(SUM(bytes), 0) FROM journal.attachments").fetchone()[0])
-        if used + len(prepared["data"]) > total_cap():
+        if used(conn) + len(prepared["data"]) > total_cap():
             raise Rejected("The attachment storage is full.")
 
         token = uuid.uuid4().hex

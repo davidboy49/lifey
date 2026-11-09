@@ -13,7 +13,8 @@ const ITEMS = [
   { href: "/journal", label: "Journal", d: "M6 3h11a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6V3Zm0 0v18M10 8h5M10 12h5" },
   { href: "/sleep", label: "Sleep", d: "M21 12.8A8.5 8.5 0 1 1 11.2 3a6.5 6.5 0 0 0 9.8 9.8Z" },
   { href: "/habits", label: "Bad habits", d: "M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6" },
-  { href: "/review", label: "Review", d: "M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h9" },
+  { href: "/reviews", label: "Event review", d: "M12 8v4l2.5 2.5M3.5 12a8.5 8.5 0 1 0 2.5-6M3 4v4h4" },
+  { href: "/review", label: "Weekly review", d: "M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h9" },
   { href: "/learning", label: "Learning", d: "M3 8l9-4 9 4-9 4-9-4Zm4 2.5V15c0 1.4 2.2 3 5 3s5-1.6 5-3v-4.5M21 8v6" },
   { href: "/trends", label: "Trends", d: "M3 17l5-6 4 3 8-9M3 21h18" },
   { href: "/data", label: "Data", d: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Zm0 0v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" },
@@ -48,7 +49,8 @@ export function Nav() {
     }
   }
 
-  const active = (h: string) => (h === "/" ? path === "/" : path.startsWith(h));
+  // Whole path segments only, so /reviews does not also light up /review.
+  const active = (h: string) => (h === "/" ? path === "/" : path === h || path.startsWith(`${h}/`));
   const primary = ITEMS.filter((i) => MOBILE_PRIMARY.includes(i.href));
   const secondary = ITEMS.filter((i) => !MOBILE_PRIMARY.includes(i.href));
   const moreActive = secondary.some((i) => active(i.href));

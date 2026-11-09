@@ -1,11 +1,13 @@
 """What the Claude connector may write, and nothing else.
 
-Two kinds of write, both small and fixed:
+Three kinds of write, all small and fixed:
 - capture: one learning session (minutes) for today or the last week. It is undoable.
+- event review: a new look back on an event or day, in the owner's words as he dictates them
+  (owner's decision 2026-11-09). It only ever adds a review; it is undoable.
 - propose: a study, a focus or a quest goes to the inbox and waits for the owner.
 
-Not here, on purpose: closing a focus (the result is the owner's judgement), the review reflection and
-recall (the owner's own words), journal notes, habits other than learning, and any edit or delete of
+Not here, on purpose: closing a focus (the result is the owner's judgement), the weekly review reflection
+and recall (the owner's own words), journal notes, habits other than learning, and any edit or delete of
 existing data. Every call is audited, rate-limited and idempotent when given a request id.
 """
 from __future__ import annotations
@@ -16,7 +18,7 @@ from datetime import date, timedelta
 from .. import db
 from ..bot import store
 from ..health import quality
-from ..journal import learning, proposals, quests, repo
+from ..journal import event_reviews, learning, proposals, quests, repo
 
 RATE_PER_HOUR = 60
 MAX_BACK_DAYS = 7
@@ -158,3 +160,27 @@ def propose_quest(client_id: str | None, kind: str, target: int, params: dict | 
     payload = {"week_start": monday.isoformat(), "kind": kind, "target": int(target), "params": clean}
     return _propose("lifey_propose_quest", client_id, "quest", payload, "",
                     f"Suggested a quest for the week of {monday.isoformat()}: {label}", args, request_id)
+
+
+def create_review(client_id: str | None, event: str, date_: str, mood: int | None = None,
+                  energy: int | None = None, notes: str = "", went_well: str = "", would_change: str = "",
+                  loop_tags: list[str] | None = None, lesson: str = "", request_id: str | None = None) -> dict:
+    # The audit keeps what was asked for, but not the free text: that stays in the review itself.
+    args = {"event": event, "date": date_, "mood": mood, "energy": energy, "loop_tags": loop_tags or [],
+            "request_id": request_id}
+    try:
+        clean = event_reviews.validate({"event": event, "date": date_, "mood": mood, "energy": energy,
+                                        "notes": notes, "went_well": went_well, "would_change": would_change,
+                                        "loop_tags": loop_tags, "lesson": lesson})
+    except event_reviews.Invalid as exc:
+        raise Refused(str(exc)) from exc
+    key = _key(request_id)
+    if (dup := _duplicate("lifey_create_review", key)):
+        return {"created": False, **dup}
+    _guard("lifey_create_review", client_id, args)
+    review = event_reviews.create(clean)
+    audit_id = _audit("lifey_create_review", client_id,
+                      f"Added a review: {clean['event'][:120]} on {clean['date'].isoformat()}",
+                      {**args, "date": clean["date"].isoformat()}, "ok", "event_review", review["id"], key)
+    return {"created": True, "review_id": review["id"], "date": review["date"], "audit_id": audit_id,
+            "undo": "Settings, Connector activity"}
