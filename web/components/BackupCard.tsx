@@ -46,7 +46,7 @@ export function BackupCard({ status }: { status: BackupStatus }) {
         </div>
       )}
       <p className="text-xs text-ink-3">
-        Encrypted before it leaves the server; only your private key can open it. Checked every night.
+        Copied to Google Drive without encryption, so anyone who can open that folder can read it. Backed up every Sunday.
       </p>
     </section>
   );
