@@ -18,6 +18,8 @@ from . import habits as habit_views
 router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(current_user)])
 
 MAX_BACKDATE_DAYS = 400
+MAX_RANGE_DAYS = 366
+BOOK_FIRST_DAY = "2000-01-01"   # the book index reads every note there is
 QUIT_ACTIONS = {"slip": ("master", 1.0), "urge": ("urge_resisted", 1.0), "clean": ("clean_day", 0.0)}
 
 
@@ -52,21 +54,41 @@ def _local_now() -> datetime:
     return datetime.now(quality.user_timezone())
 
 
+def _range(days: int | None, start: dt.date | None, end: dt.date | None, today: dt.date) -> tuple[dt.date, dt.date]:
+    """The inclusive day range asked for: an explicit from/to, or the last N days ending today."""
+    if start is None and end is None:
+        n = days or 7
+        return today - timedelta(days=n - 1), today
+    end = end or today
+    if end > today:
+        raise HTTPException(422, "The range cannot end after today.")
+    start = start or end - timedelta(days=(days or 7) - 1)
+    if start > end:
+        raise HTTPException(422, "The range must start on or before its end.")
+    if (end - start).days + 1 > MAX_RANGE_DAYS:
+        raise HTTPException(422, f"A range can cover at most {MAX_RANGE_DAYS} days.")
+    return start, end
+
+
 @router.get("")
-def timeline(days: int = Query(7, ge=1, le=90), kind: str = Query("all")) -> dict:
+def timeline(days: int | None = Query(None, ge=1, le=MAX_RANGE_DAYS),
+             start_day: dt.date | None = Query(None, alias="from"),
+             end_day: dt.date | None = Query(None, alias="to"),
+             kind: str = Query("all")) -> dict:
     if kind not in entries.KIND_FILTERS:
         raise HTTPException(422, f"kind must be one of {sorted(entries.KIND_FILTERS)}")
     today = quality.today()
-    start = today - timedelta(days=days - 1)
-    logs = store.get_activity_logs_between(start.isoformat(), today.isoformat())
+    start, end = _range(days, start_day, end_day, today)
+    logs = store.get_activity_logs_between(start.isoformat(), end.isoformat())
     wanted = entries.KIND_FILTERS[kind]
     shown = [e for e in entries.build_entries(logs) if wanted is None or e["kind"] in wanted]
     files = attachments.for_logs([i for e in shown for i in e["ids"]])
     for e in shown:
         e["attachments"] = [a for i in e["ids"] for a in files.get(i, [])]
-    groups = entries.day_groups(shown, start, today, show_gaps=wanted is None)
+    groups = entries.day_groups(shown, start, end, show_gaps=wanted is None)
 
-    today_logs = [l for l in logs if str(l["date"]) == today.isoformat()]
+    today_logs = logs if end == today else store.get_activity_logs_between(today.isoformat(), today.isoformat())
+    today_logs = [l for l in today_logs if str(l["date"]) == today.isoformat()]
     habits = [l for l in today_logs if entries.kind(l) == "habit"]
     quit_summary = quit_tracker.summarize(store.get_quit_logs(), today)
     tracking = quit_summary.get("tracking_start") is not None
@@ -76,7 +98,8 @@ def timeline(days: int = Query(7, ge=1, le=90), kind: str = Query("all")) -> dic
         habit_views.quit_strip(store.get_activity_logs_between(last30[0].isoformat(), today.isoformat()), last30),
         today)
     return {
-        "today": today.isoformat(), "start": start.isoformat(), "days": days, "kind": kind,
+        "today": today.isoformat(), "start": start.isoformat(), "end": end.isoformat(),
+        "days": (end - start).days + 1, "kind": kind,
         "summary": {
             "mood": entries.latest_value(today_logs, "mood"),
             "energy": entries.latest_value(today_logs, "energy"),
@@ -91,6 +114,25 @@ def timeline(days: int = Query(7, ge=1, le=90), kind: str = Query("all")) -> dic
         "groups": groups,
         "count": sum(len(g["entries"]) for g in groups if not g["empty"]),
     }
+
+
+@router.get("/pages")
+def pages() -> dict:
+    """Every day that has a note, oldest first: the pages of the journal book.
+
+    Today is always included, so there is a page to write on even before the first note of the day.
+    """
+    today = quality.today()
+    logs = store.get_activity_logs_between(BOOK_FIRST_DAY, today.isoformat())
+    notes = [e for e in entries.build_entries(logs) if e["kind"] == "note"]
+    files = attachments.for_logs([i for e in notes for i in e["ids"]])
+    by_day: dict[str, dict] = {}
+    for e in notes:
+        page = by_day.setdefault(e["date"], {"date": e["date"], "notes": 0, "photos": 0})
+        page["notes"] += 1
+        page["photos"] += sum(1 for i in e["ids"] for a in files.get(i, []) if a.get("has_thumb"))
+    by_day.setdefault(today.isoformat(), {"date": today.isoformat(), "notes": 0, "photos": 0})
+    return {"today": today.isoformat(), "pages": sorted(by_day.values(), key=lambda p: p["date"])}
 
 
 @router.get("/memories")

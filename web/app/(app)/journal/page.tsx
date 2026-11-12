@@ -6,7 +6,7 @@ import { EntryRow } from "@/components/EntryRow";
 import { Memories } from "@/components/Memories";
 import { SyncControl } from "@/components/SyncControl";
 import { apiGet } from "@/lib/api";
-import { dayName, shortDay, type JournalResponse, type Memory } from "@/lib/journal";
+import { addDays, dayName, shortDay, type JournalResponse, type Memory } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,12 @@ const RANGES = [
   { days: 7, label: "7 days" },
   { days: 30, label: "30 days" },
 ];
+const MAX_RANGE_DAYS = 366;
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A range is either "the last N days" or an explicit from–to (inclusive). */
+type Range = { days: number } | { from: string; to: string };
+
 // The journal is notes and photos. Habits, quit and check-in entries live on the Habits page,
 // and are only mixed in here through "Everything" (or an old ?kind=habit link).
 const KINDS = [
@@ -24,22 +30,70 @@ const KINDS = [
 ];
 const LEGACY_KINDS = ["habit", "quit", "checkin", "training"];
 
-function href(days: number, kind: string) {
+function pill(on: boolean) {
+  return `rounded-lg px-3 py-1.5 text-sm font-medium ${on ? "bg-accent-soft text-accent" : "text-ink-2 hover:text-ink"}`;
+}
+
+/** Today in the person's time zone, used only to sanity-check the URL before the API answers. */
+function todayLocal(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Phnom_Penh" });
+}
+
+function href(range: Range, kind: string) {
   const q = new URLSearchParams();
-  if (days !== 7) q.set("days", String(days));
+  if ("from" in range) {
+    q.set("from", range.from);
+    q.set("to", range.to);
+  } else if (range.days !== 7) q.set("days", String(range.days));
   if (kind !== "note") q.set("kind", kind);
   const s = q.toString();
   return s ? `/journal?${s}` : "/journal";
 }
 
-export default async function JournalPage({ searchParams }: { searchParams: Promise<{ days?: string; kind?: string }> }) {
+function spanDays(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+}
+
+function monthStart(iso: string, delta = 0): string {
+  const [y, m] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + delta, 1)).toISOString().slice(0, 10);
+}
+
+function monthEnd(iso: string): string {
+  return addDays(monthStart(iso, 1), -1);
+}
+
+function monthLabel(iso: string): string {
+  const [y, m] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
+/** Read the range from the URL, falling back to 7 days for anything malformed. */
+function parseRange(sp: { days?: string; from?: string; to?: string }, today: string): Range {
+  if (sp.from && ISO.test(sp.from)) {
+    let to = sp.to && ISO.test(sp.to) ? sp.to : today;
+    if (to > today) to = today;
+    let from = sp.from;
+    if (from > to) [from, to] = [to, from];
+    if (spanDays(from, to) > MAX_RANGE_DAYS) from = addDays(to, -(MAX_RANGE_DAYS - 1));
+    return { from, to };
+  }
+  const days = Number(sp.days);
+  return { days: [1, 7, 30].includes(days) ? days : 7 };
+}
+
+export default async function JournalPage({ searchParams }: {
+  searchParams: Promise<{ days?: string; kind?: string; from?: string; to?: string }>;
+}) {
   const sp = await searchParams;
-  const days = [1, 7, 30].includes(Number(sp.days)) ? Number(sp.days) : 7;
+  const today = todayLocal();
+  const range = parseRange(sp, today);
   const known = [...KINDS.map((k) => k.key), ...LEGACY_KINDS];
   const kind = known.includes(sp.kind ?? "") ? (sp.kind as string) : "note";
 
   // "Photos" is a notes view narrowed to entries that carry a file; the API has no filter for it.
-  const res = await apiGet<JournalResponse>(`/api/journal?days=${days}&kind=${kind === "photos" ? "note" : kind}`);
+  const rangeQuery = "from" in range ? `from=${range.from}&to=${range.to}` : `days=${range.days}`;
+  const res = await apiGet<JournalResponse>(`/api/journal?${rangeQuery}&kind=${kind === "photos" ? "note" : kind}`);
   if (res.status === "unauthorized") redirect("/login");
   if (res.status !== "ok") return <ApiDown />;
   const j: JournalResponse = kind === "photos"
@@ -55,7 +109,26 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
     (n, g) => n + (g.empty ? 0 : g.entries.reduce((m, e) => m + (e.attachments?.filter((a) => a.has_thumb).length ?? 0), 0)),
     0,
   );
-  const rangeLabel = RANGES.find((r) => r.days === days)?.label.toLowerCase() ?? `${days} days`;
+  // Month shortcuts are built from the API's "today" (the person's local day), not the server clock.
+  const thisMonth = { from: monthStart(j.today), to: j.today };
+  const lastMonth = { from: monthStart(j.today, -1), to: monthEnd(monthStart(j.today, -1)) };
+  const thisYear = { from: `${j.today.slice(0, 4)}-01-01`, to: j.today };
+  const isRange = (r: { from: string; to: string }) => "from" in range && range.from === r.from && range.to === r.to;
+  const presets = [
+    { key: "month", label: "This month", range: thisMonth },
+    { key: "last-month", label: "Last month", range: lastMonth },
+    { key: "year", label: "This year", range: thisYear },
+  ];
+  const activePreset = presets.find((p) => isRange(p.range));
+  const isCustom = "from" in range && !activePreset;
+  // A whole calendar month (or this month so far) gets a ‹ month › stepper.
+  const shownMonth = "from" in range && range.from === monthStart(range.from)
+    && (range.to === monthEnd(range.from) || (range.to === j.today && monthStart(j.today) === range.from))
+    ? range.from : null;
+  const monthRange = (start: string) => ({ from: start, to: monthEnd(start) > j.today ? j.today : monthEnd(start) });
+  const rangeLabel = "from" in range
+    ? activePreset?.label.toLowerCase() ?? (range.from === range.to ? shortDay(range.from) : `${shortDay(range.from)} – ${shortDay(range.to)}`)
+    : RANGES.find((r) => r.days === range.days)?.label.toLowerCase() ?? `${range.days} days`;
   const sync = await apiGet<{ last_run: { finished_at: string | null } | null }>("/api/health/sync");
   const catalog = await apiGet<{ label: string; unit: string }[]>("/api/habits/catalog");
   const mem = await apiGet<{ memories: Memory[] }>("/api/journal/memories");
@@ -74,7 +147,12 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
             {name}, <span className="text-ink-3">{sub}</span>
           </h1>
         </div>
-        <SyncControl syncedAt={syncedAt} />
+        <div className="flex items-center gap-2">
+          <Link href="/journal/book" className="rounded-xl border border-line bg-raised px-3 py-2 text-sm font-medium text-ink-2 hover:text-ink">
+            Open as book
+          </Link>
+          <SyncControl syncedAt={syncedAt} />
+        </div>
       </header>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Today at a glance">
@@ -93,7 +171,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
               {KINDS.map((k) => (
                 <Link
                   key={k.key}
-                  href={href(days, k.key)}
+                  href={href(range, k.key)}
                   aria-current={kind === k.key ? "true" : undefined}
                   className={`rounded-full border px-3 py-1.5 text-sm font-medium ${kind === k.key ? "border-accent bg-accent-soft text-accent" : "border-line bg-raised text-ink-2 hover:text-ink"}`}
                 >
@@ -101,18 +179,58 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
                 </Link>
               ))}
             </nav>
-            <nav aria-label="Range" className="flex gap-1 rounded-xl border border-line bg-raised p-1">
-              {RANGES.map((r) => (
-                <Link
-                  key={r.days}
-                  href={href(r.days, kind)}
-                  aria-current={days === r.days ? "true" : undefined}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium ${days === r.days ? "bg-accent-soft text-accent" : "text-ink-2 hover:text-ink"}`}
-                >
-                  {r.label}
+            <nav aria-label="Range" className="flex flex-wrap gap-1 rounded-xl border border-line bg-raised p-1">
+              {RANGES.map((r) => {
+                const on = "days" in range && range.days === r.days;
+                return (
+                  <Link key={r.days} href={href({ days: r.days }, kind)} aria-current={on ? "true" : undefined} className={pill(on)}>
+                    {r.label}
+                  </Link>
+                );
+              })}
+              {presets.map((p) => (
+                <Link key={p.key} href={href(p.range, kind)} aria-current={activePreset?.key === p.key ? "true" : undefined}
+                      className={pill(activePreset?.key === p.key)}>
+                  {p.label}
                 </Link>
               ))}
             </nav>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {shownMonth ? (
+              <nav aria-label="Month" className="flex items-center gap-1">
+                <Link href={href(monthRange(monthStart(shownMonth, -1)), kind)} aria-label="Previous month"
+                      className="grid size-9 place-items-center rounded-lg border border-line bg-raised text-ink-2 hover:text-ink">‹</Link>
+                <span className="min-w-[9.5rem] text-center font-display text-lg font-semibold">{monthLabel(shownMonth)}</span>
+                {monthStart(shownMonth, 1) <= j.today ? (
+                  <Link href={href(monthRange(monthStart(shownMonth, 1)), kind)} aria-label="Next month"
+                        className="grid size-9 place-items-center rounded-lg border border-line bg-raised text-ink-2 hover:text-ink">›</Link>
+                ) : <span className="size-9" aria-hidden />}
+              </nav>
+            ) : (
+              <p className="text-sm text-ink-2">
+                {"from" in range ? `${shortDay(range.from)} – ${shortDay(range.to)}` : `Last ${range.days === 1 ? "day" : `${range.days} days`}`}
+                {" · "}{j.count} {j.count === 1 ? "entry" : "entries"}
+              </p>
+            )}
+            <details className="group relative" open={isCustom || undefined}>
+              <summary className={`${pill(isCustom)} cursor-pointer list-none rounded-xl border border-line bg-raised`}>Custom range</summary>
+              <form action="/journal" method="get"
+                    className="mt-2 flex flex-wrap items-end gap-2 rounded-xl border border-line bg-raised p-3 sm:absolute sm:right-0 sm:z-10 sm:shadow-[var(--shadow)]">
+                {kind !== "note" && <input type="hidden" name="kind" value={kind} />}
+                <label className="grid gap-1 text-xs text-ink-3">From
+                  <input type="date" name="from" required max={j.today} defaultValue={"from" in range ? range.from : j.start}
+                         className="rounded-lg border border-line bg-panel px-2 py-1.5 text-sm text-ink" />
+                </label>
+                <label className="grid gap-1 text-xs text-ink-3">To
+                  <input type="date" name="to" required max={j.today} defaultValue={"from" in range ? range.to : j.today}
+                         className="rounded-lg border border-line bg-panel px-2 py-1.5 text-sm text-ink" />
+                </label>
+                <button type="submit" className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-white">Show</button>
+                <p className="basis-full text-xs text-ink-3">Up to a year at a time.</p>
+              </form>
+            </details>
           </div>
 
           {j.count === 0 && !j.groups.some((g) => g.empty) && (

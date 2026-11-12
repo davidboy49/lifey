@@ -81,11 +81,36 @@ def activities(days: int = 30) -> dict:
             "activities": [{k: v for k, v in r.items() if v is not None} for r in found[-MAX_ROWS:]]}
 
 
-def journal(days: int = DEFAULT_DAYS, kind: str | None = None) -> dict:
-    """Journal entries, newest first. `kind`: note, habit, checkin, quit, training."""
+def _iso_day(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10]).isoformat()
+    except ValueError:
+        return None
+
+
+def journal(days: int = DEFAULT_DAYS, kind: str | None = None,
+            start: str | None = None, end: str | None = None) -> dict:
+    """Journal entries, newest first. `kind`: note, habit, checkin, quit, training.
+
+    `start`/`end` (YYYY-MM-DD, inclusive) pick a date range instead of the last N days; a range is capped at
+    MAX_DAYS days, counted back from `end`.
+    """
     n = clamp_days(days)
     from .. import attachments
-    found = data_routes.rows("journal", n)
+    a, b = _iso_day(start), _iso_day(end)
+    if a or b:
+        b = b or quality.today().isoformat()
+        a = a or (date.fromisoformat(b) - timedelta(days=n - 1)).isoformat()
+        if a > b:
+            a, b = b, a
+        floor = (date.fromisoformat(b) - timedelta(days=MAX_DAYS - 1)).isoformat()
+        a = max(a, floor)
+        found = [r for r in data_routes.rows("journal") if a <= str(r.get("date") or "")[:10] <= b]
+        n = (date.fromisoformat(b) - date.fromisoformat(a)).days + 1
+    else:
+        found = data_routes.rows("journal", n)
     files = attachments.for_logs([r.get("id") for r in found])
     out, counts = [], Counter()
     for r in reversed(found):
@@ -98,7 +123,8 @@ def journal(days: int = DEFAULT_DAYS, kind: str | None = None) -> dict:
                 "recalled_later": bool(r.get("recalled")),
                 "attachments": [a["filename"] for a in files.get(r.get("id"), [])] or None}
         out.append({kk: v for kk, v in item.items() if v not in (None, "", False)} | {"date": r["date"], "kind": k})
-    return {"window_days": n, "entries_in_window": len(found), "by_kind": dict(counts),
+    window = {"from": a, "to": b} if (a or b) else {}
+    return {"window_days": n, **window, "entries_in_window": len(found), "by_kind": dict(counts),
             "entries": out[:MAX_ROWS],
             "note": "A day with no entries is unknown, not a clean day. recalled_later = written on a later day."}
 
