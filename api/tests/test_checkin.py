@@ -1,5 +1,6 @@
 """The evening check-in: answers are saved one tap at a time, unknown stays NULL, yes mirrors into habits."""
 import asyncio
+from datetime import date, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -144,3 +145,60 @@ def test_more_button_takes_an_exact_typed_drink_count(pg):
     assert "Caffeine" in q.message.edit_text.call_args.args[0]
     alcohol = [l for l in db.get_activity_logs(today) if l.get("tag") == "alcohol"]
     assert len(alcohol) == 1 and alcohol[0]["value"] == 6.0
+
+
+def _tap(data):
+    """A button tap as the callback handler sees it; returns the query so replies can be read."""
+    message = SimpleNamespace(edit_text=AsyncMock(), reply_text=AsyncMock())
+    q = SimpleNamespace(data=data, answer=AsyncMock(), edit_message_text=AsyncMock(), message=message)
+    update = SimpleNamespace(effective_chat=SimpleNamespace(id=123), message=None, callback_query=q)
+    asyncio.run(bot.callback_query_handler(update, CTX()))
+    return q
+
+
+def test_callback_day_reads_the_evening_and_falls_back_to_today():
+    today = date(2026, 11, 12)
+    assert bot.callback_day("quit:clean:2026-11-11", today) == date(2026, 11, 11)
+    assert bot.callback_day("mood:3:2026-11-11", today) == date(2026, 11, 11)
+    assert bot.callback_day("quit:clean", today) == today          # buttons sent before this change
+    assert bot.callback_day("mood:3", today) == today
+    assert bot.callback_day("quit:clean:2026-11-13", today) == today   # future
+    assert bot.callback_day("quit:clean:2026-10-01", today) == today   # over a week old
+
+
+def test_nightly_buttons_carry_the_evening_and_fit_telegram():
+    for row in bot.checkin_keyboard("2026-11-11").inline_keyboard + bot.mood_keyboard("energy", "2026-11-11").inline_keyboard:
+        for b in row:
+            assert b.callback_data.endswith(":2026-11-11") and len(b.callback_data.encode()) <= 64
+
+
+def test_clean_tapped_after_midnight_lands_on_the_evening_it_was_asked(pg, monkeypatch):
+    """Nov 11's nightly check-in answered at 06:27 on Nov 12 used to be logged on Nov 12."""
+    monkeypatch.setattr(bot, "AUTHORIZED_CHAT_ID", "123")
+    yesterday = (quality.today() - timedelta(days=1)).isoformat()
+    q = _tap(f"quit:clean:{yesterday}")
+    assert f"for <code>{yesterday}</code>" in q.edit_message_text.call_args.args[0]
+    mood_markup = q.message.reply_text.call_args.kwargs["reply_markup"]
+    assert mood_markup.inline_keyboard[0][0].callback_data == f"mood:1:{yesterday}"
+    _tap(f"mood:4:{yesterday}")
+    _tap(f"energy:2:{yesterday}")
+    logs = db.get_activity_logs(yesterday)
+    assert {(l["tag"], l["value"]) for l in logs} >= {("clean_day", 0), ("mood", 4.0), ("energy", 2.0)}
+    assert not [l for l in db.get_activity_logs(quality.today().isoformat())
+                if l["tag"] in {"clean_day", "mood", "energy"}]
+
+    again = _tap(f"quit:clean:{yesterday}")                       # a second tap does not log twice
+    assert again.edit_message_text.call_args.kwargs["reply_markup"] is None
+    assert len([l for l in db.get_activity_logs(yesterday) if l["tag"] == "clean_day"]) == 1
+
+
+def test_slip_tapped_after_midnight_lands_on_the_evening_and_old_buttons_still_mean_today(pg, monkeypatch):
+    monkeypatch.setattr(bot, "AUTHORIZED_CHAT_ID", "123")
+    today = quality.today().isoformat()
+    yesterday = (quality.today() - timedelta(days=1)).isoformat()
+    _tap(f"quit:slip:{yesterday}")
+    assert [l["tag"] for l in db.get_activity_logs(yesterday)] == ["master"]
+    clean = _tap(f"quit:clean:{yesterday}")
+    assert "can't be marked clean" in clean.edit_message_text.call_args.args[0]
+    _tap("quit:clean")                                            # an old dateless button: today
+    assert [l["tag"] for l in db.get_activity_logs(today)] == ["clean_day"]
