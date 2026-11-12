@@ -213,10 +213,17 @@ def test_backup_state_never_ok_failed_auth_failed_and_stale(pg):
     assert s["state"] == "failed" and "sign in" not in s["headline"] and s["hint"] == "directory not found"
 
 
-def test_backup_goes_stale_when_nothing_succeeds_for_a_day_and_a_half(pg):
-    run(pg, 40, True)
+def test_a_weekly_backup_is_not_stale_mid_week(pg):
+    """The timer runs on Sundays; a 36-hour limit used to raise a false alarm every Monday onward."""
+    run(pg, 6 * 24, True)
     s = backup_status.status()
-    assert s["state"] == "stale" and s["needs_attention"]
+    assert s["state"] == "ok" and not s["needs_attention"]
+
+
+def test_backup_goes_stale_when_nothing_succeeds_for_over_a_week(pg):
+    run(pg, 8 * 24 + 2, True)
+    s = backup_status.status()
+    assert s["state"] == "stale" and s["needs_attention"] and "over a week" in s["headline"]
 
 
 def test_a_long_note_with_a_pdf_is_rejected_loudly_not_cut(client):
