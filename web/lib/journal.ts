@@ -42,6 +42,7 @@ export type JournalGroup =
 export interface JournalResponse {
   today: string;
   start: string;
+  end: string;
   days: number;
   kind: string;
   count: number;

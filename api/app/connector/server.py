@@ -89,10 +89,12 @@ def build():
         return await asyncio.to_thread(tools.sleep)
 
     @mcp.tool(annotations=READ_ONLY)
-    async def lifey_journal(days: int = 14, kind: str | None = None) -> dict:
+    async def lifey_journal(days: int = 14, kind: str | None = None,
+                            start: str | None = None, end: str | None = None) -> dict:
         """Journal entries for the last N days, newest first. `kind` can be note, habit, checkin, quit or
-        training. A day with no entries is unknown, not a clean day."""
-        return await asyncio.to_thread(tools.journal, days, kind)
+        training. Pass `start` and/or `end` (YYYY-MM-DD, inclusive, max 365 days) to read a past period
+        instead, such as one month. A day with no entries is unknown, not a clean day."""
+        return await asyncio.to_thread(tools.journal, days, kind, start, end)
 
     @mcp.tool(annotations=READ_ONLY)
     async def lifey_habits(days: int = 30) -> dict:

@@ -33,6 +33,14 @@
   --k-training-bg: #d6f0ec;
   --k-note: #4b5a53;
   --k-note-bg: #e6ebe8;
+  /* The journal book: warm paper in light mode, a dark leather notebook in dark mode. */
+  --paper: #fbf6ea;
+  --paper-ink: #2b2620;
+  --paper-ink-2: #6b6255;
+  --paper-rule: rgb(120 140 170 / 0.22);
+  --paper-margin: rgb(200 90 80 / 0.28);
+  --paper-edge: #e6dcc6;
+  --paper-cover: #6b4a33;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -63,6 +71,13 @@
     --k-training-bg: #0f2e2a;
     --k-note: #a7b5ad;
     --k-note-bg: #1d2823;
+    --paper: #1d1a16;
+    --paper-ink: #ece3d2;
+    --paper-ink-2: #a89d8a;
+    --paper-rule: rgb(236 227 210 / 0.08);
+    --paper-margin: rgb(230 120 100 / 0.22);
+    --paper-edge: #2c2722;
+    --paper-cover: #3b2a1e;
     color-scheme: dark;
   }
 }
@@ -94,6 +109,13 @@
   --k-training-bg: #0f2e2a;
   --k-note: #a7b5ad;
   --k-note-bg: #1d2823;
+  --paper: #1d1a16;
+  --paper-ink: #ece3d2;
+  --paper-ink-2: #a89d8a;
+  --paper-rule: rgb(236 227 210 / 0.08);
+  --paper-margin: rgb(230 120 100 / 0.22);
+  --paper-edge: #2c2722;
+  --paper-cover: #3b2a1e;
   color-scheme: dark;
 }
 
@@ -211,3 +233,33 @@ body {
 .cell-s4 { background: color-mix(in srgb, var(--k-checkin) 78%, var(--k-checkin-bg)); }
 .cell-s5 { background: var(--k-checkin); }
 .cell-urge { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--raised) 85%, transparent); }
+
+/* ---------- Journal book ---------- */
+.book-paper {
+  background-color: var(--paper);
+  color: var(--paper-ink);
+  /* Ruled lines on the same 28px rhythm as the text. */
+  background-image: repeating-linear-gradient(to bottom, transparent 0 27px, var(--paper-rule) 27px 28px);
+  background-position: 0 var(--book-pad-top, 56px);
+}
+.book-flow {
+  column-fill: auto;
+  line-height: 28px;
+}
+.book-day, .book-chapter {
+  break-before: column;
+  -webkit-column-break-before: always;
+}
+.book-flow > :first-child { break-before: auto; -webkit-column-break-before: auto; }
+.book-keep { break-inside: avoid; -webkit-column-break-inside: avoid; }
+@keyframes book-sweep {
+  from { opacity: 0.55; transform: translateX(var(--sweep-from, 0)); }
+  to { opacity: 0; transform: translateX(var(--sweep-to, 0)); }
+}
+.book-sweep { animation: book-sweep 420ms ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .book-sweep { animation: none; opacity: 0; }
+}
+@media print {
+  nav, .book-chrome { display: none !important; }
+}

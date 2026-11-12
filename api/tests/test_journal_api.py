@@ -182,3 +182,51 @@ def test_sync_status_reports_running_only_for_a_recent_run(client, pg):
     pg.execute("UPDATE health.sync_runs SET started_at = NOW() - interval '2 hours'")
     pg.commit()
     assert client.get("/api/health/sync").json()["running"] is False   # a crashed run, not a live one
+
+
+# ---------- date ranges and the book index ----------
+
+def test_from_to_reads_a_past_window_and_nothing_outside_it(client):
+    for d in (40, 45, 50):
+        assert client.post("/api/journal", json={"kind": "note", "note": f"day {d}", "date": ago(d)}).status_code == 201
+    body = timeline(client, **{"from": ago(47), "to": ago(42), "kind": "note"})
+    assert body["start"] == ago(47) and body["end"] == ago(42) and body["days"] == 6
+    assert [e["note"] for e in all_entries(body)] == ["day 45"]
+
+
+def test_from_alone_runs_to_today_and_today_summary_ignores_the_range(client):
+    client.post("/api/journal", json={"kind": "checkin", "mood": 4})
+    client.post("/api/journal", json={"kind": "note", "note": "old", "date": ago(200)})
+    body = timeline(client, **{"from": ago(250)})
+    assert body["end"] == quality.today().isoformat() and body["days"] == 251
+    past = timeline(client, **{"from": ago(210), "to": ago(190)})
+    assert past["summary"]["mood"] == 4 and [e["note"] for e in all_entries(past)] == ["old"]
+
+
+def test_bad_ranges_are_refused(client):
+    tomorrow = (quality.today() + timedelta(days=1)).isoformat()
+    assert client.get("/api/journal", params={"from": ago(1), "to": tomorrow}).status_code == 422
+    assert client.get("/api/journal", params={"from": ago(1), "to": ago(3)}).status_code == 422
+    assert client.get("/api/journal", params={"from": ago(400), "to": ago(0)}).status_code == 422
+    assert client.get("/api/journal", params={"days": 366}).status_code == 200
+
+
+def test_pages_lists_days_with_notes_oldest_first_and_always_today(client):
+    client.post("/api/journal", json={"kind": "note", "note": "a", "date": ago(10)})
+    client.post("/api/journal", json={"kind": "note", "note": "b", "date": ago(10)})
+    client.post("/api/journal", json={"kind": "note", "note": "c", "date": ago(3)})
+    client.post("/api/journal", json={"kind": "habit", "habit": "Alcohol", "amount": 1, "date": ago(5)})
+    r = client.get("/api/journal/pages")
+    assert r.status_code == 200
+    pages = r.json()["pages"]
+    assert [(p["date"], p["notes"]) for p in pages] == [(ago(10), 2), (ago(3), 1), (ago(0), 0)]
+
+
+def test_connector_journal_reads_a_date_range(client):
+    from app.connector import tools
+    for d in (40, 45, 50):
+        client.post("/api/journal", json={"kind": "note", "note": f"day {d}", "date": ago(d)})
+    out = tools.journal(kind="note", start=ago(47), end=ago(42))
+    assert out["from"] == ago(47) and out["to"] == ago(42) and out["window_days"] == 6
+    assert [e["note"] for e in out["entries"]] == ["day 45"]
+    assert [e["note"] for e in tools.journal(kind="note", days=14)["entries"]] == []
