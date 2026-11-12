@@ -764,7 +764,7 @@ async def reminder_tick(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.warning(f"Reminder check failed: {e}")
         return
-    if now.hour >= 9 and now.minute == 0:      # hourly, from 9am: one alert a day at most
+    if now.hour >= 9 and now.minute == 0:      # hourly, from 9am: one alert a week at most
         try:
             await backup_watch(context)
         except Exception as e:
@@ -778,11 +778,12 @@ async def reminder_tick(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def backup_watch(context: ContextTypes.DEFAULT_TYPE):
-    """Tell the owner once a day when the off-box backup needs attention."""
+    """Tell the owner once a week when the off-box backup needs attention (the backup itself is weekly)."""
     state = await asyncio.to_thread(backup_status.status)
     if not state["needs_attention"] or state["state"] == "never":
         return
-    if not await asyncio.to_thread(reminders.claim_daily, "backup_alert", quality.today().isoformat()):
+    year, week, _ = quality.today().isocalendar()
+    if not await asyncio.to_thread(reminders.claim_daily, "backup_alert", f"{year}-W{week:02d}"):
         return
     text = f"⚠️ <b>Backup needs attention</b>\n{html.escape(state['headline'])}"
     if state.get("hint"):

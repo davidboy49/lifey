@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import db
 
-STALE_AFTER = timedelta(hours=36)     # a nightly job that hasn't succeeded in a day and a half
+STALE_AFTER = timedelta(days=8)      # a weekly job (Sundays) that hasn't succeeded in over a week, plus a day of slack
 AUTH_HINT = re.compile(r"invalid_grant|token|oauth|401|unauthori[sz]ed|expired|reauth|403", re.I)
 
 
@@ -55,8 +55,8 @@ def status(now: datetime | None = None) -> dict:
             out["hint"] = detail[:240] or "Check the backup log on the server."
     elif ok is None or (age_ok is not None and age_ok > STALE_AFTER):
         out["state"], out["needs_attention"] = "stale", True
-        out["headline"] = "No successful backup in over a day and a half."
-        out["hint"] = "The nightly job may not be running. Check the backup timer on the server."
+        out["headline"] = "No successful backup in over a week."
+        out["hint"] = "The weekly job may not be running. Check the backup timer on the server."
     elif latest["ok"] is None:
         out["state"], out["needs_attention"] = "running", False
         out["headline"] = "A backup is running."
