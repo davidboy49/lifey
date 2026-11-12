@@ -665,9 +665,11 @@ async def urge_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     schedule_urge_followup(context, update.effective_chat.id)
 
 
-def mood_keyboard(kind: str):
+def mood_keyboard(kind: str, day: str | None = None):
+    """`day` pins the answer to an evening, so a rating tapped after midnight lands on it."""
+    suffix = f":{day}" if day else ""
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton(label, callback_data=f"{kind}:{n}")
+        InlineKeyboardButton(label, callback_data=f"{kind}:{n}{suffix}")
         for n, label in enumerate(["1 😞", "2 🙁", "3 😐", "4 🙂", "5 😄"], start=1)
     ]])
 
@@ -681,11 +683,23 @@ async def mood_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-def checkin_keyboard():
+def checkin_keyboard(day: str):
+    """The nightly buttons carry the evening they were sent for, like the evening check-in does."""
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ Clean today", callback_data="quit:clean"),
-        InlineKeyboardButton("❌ I slipped", callback_data="quit:slip"),
+        InlineKeyboardButton("✅ Clean today", callback_data=f"quit:clean:{day}"),
+        InlineKeyboardButton("❌ I slipped", callback_data=f"quit:slip:{day}"),
     ]])
+
+
+def callback_day(data: str, today: date) -> date:
+    """The day a button was sent for (a trailing `:YYYY-MM-DD`), so an answer tapped after midnight
+    lands on that evening. Buttons without a date, or with one in the future or over a week old,
+    mean today."""
+    try:
+        day = date.fromisoformat(data.rsplit(":", 1)[-1])
+    except ValueError:
+        return today
+    return day if today - timedelta(days=7) <= day <= today else today
 
 
 MORNING_SYNC_TIMEOUT = 180
@@ -739,7 +753,7 @@ async def nightly_checkin(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=AUTHORIZED_CHAT_ID,
         text=f"🌙 <b>Nightly check-in</b>\nStreak: {days(s['current_streak'])}. Were you Master-free today?",
-        reply_markup=checkin_keyboard(), parse_mode="HTML",
+        reply_markup=checkin_keyboard(today.isoformat()), parse_mode="HTML",
     )
 
 
@@ -1254,29 +1268,39 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
                 await send_export(query.message, window)
             return
 
-        if data == "quit:clean":
-            s = quit_tracker.summarize(db.get_quit_logs(), quality.today())
-            if s["relapsed_today"]:
-                text = ("Today already has a Master log, so it can't be marked clean. "
+        if data == "quit:clean" or data.startswith("quit:clean:"):
+            day = callback_day(data, quality.today())
+            day_str = day.isoformat()
+            when = "" if day == quality.today() else f" for <code>{day_str}</code>"
+            logs = db.get_quit_logs()
+            on_day = quit_tracker.summarize(logs, day)    # what is already logged for that evening
+            if any(str(l["date"])[:10] == day_str for l in quit_tracker.relapse_logs(logs)):
+                text = (f"{'Today' if not when else day_str} already has a Master log, so it can't be marked clean. "
                         "If that entry was a mistake, remove it with /undo.")
                 markup = None
             else:
                 markup = None
-                if not s["clean_checked_today"]:
-                    markup = undo_keyboard(db.log_activity(date_str=today_str, category=quit_tracker.CATEGORY,
+                if not on_day["clean_checked_today"]:
+                    markup = undo_keyboard(db.log_activity(date_str=day_str, category=quit_tracker.CATEGORY,
                                                            tag=quit_tracker.CLEAN_TAG, note="", value=0))
-                text = f"✅ <b>Clean day logged.</b> Streak: {days(s['current_streak'])}. Keep going."
+                streak = quit_tracker.summarize(logs, quality.today())["current_streak"]
+                text = f"✅ <b>Clean day logged{when}.</b> Streak: {days(streak)}. Keep going."
             await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
-            await query.message.reply_text("🙂 <b>How was your mood today?</b> (1 = very low, 5 = great)",
-                                           reply_markup=mood_keyboard("mood"), parse_mode="HTML")
+            await query.message.reply_text(f"🙂 <b>How was your mood {'today' if not when else 'that day'}?</b> "
+                                           "(1 = very low, 5 = great)",
+                                           reply_markup=mood_keyboard("mood", day_str), parse_mode="HTML")
             return
 
-        if data == "quit:slip":
-            log_id = db.log_activity(date_str=today_str, category="master", tag="master", note="", value=1.0)
-            await query.edit_message_text(master_logged_text(1.0, today_str),
+        if data == "quit:slip" or data.startswith("quit:slip:"):
+            day = callback_day(data, quality.today())
+            day_str = day.isoformat()
+            log_id = db.log_activity(date_str=day_str, category="master", tag="master", note="", value=1.0)
+            await query.edit_message_text(master_logged_text(1.0, day_str),
                                           reply_markup=undo_keyboard(log_id), parse_mode="HTML")
-            await query.message.reply_text("🙂 <b>How was your mood today?</b> (1 = very low, 5 = great)",
-                                           reply_markup=mood_keyboard("mood"), parse_mode="HTML")
+            await query.message.reply_text("🙂 <b>How was your mood that day?</b> (1 = very low, 5 = great)"
+                                           if day != quality.today() else
+                                           "🙂 <b>How was your mood today?</b> (1 = very low, 5 = great)",
+                                           reply_markup=mood_keyboard("mood", day_str), parse_mode="HTML")
             return
 
         if data == "gym:done" or data.startswith("gym:did:"):
@@ -1334,13 +1358,16 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             return
 
         if data.startswith(("mood:", "energy:")):
-            kind, score = data.split(":")
-            db.log_activity(date_str=today_str, category=quit_tracker.WELLBEING_CATEGORY,
+            kind, score = data.split(":")[:2]
+            if score not in {"1", "2", "3", "4", "5"}:
+                return
+            day_str = callback_day(data, quality.today()).isoformat()
+            db.log_activity(date_str=day_str, category=quit_tracker.WELLBEING_CATEGORY,
                             tag=kind, note="", value=float(score))
             if kind == "mood":
                 await query.edit_message_text(
                     f"Mood {score}/5 saved.\n⚡ <b>And your energy?</b> (1 = drained, 5 = full)",
-                    reply_markup=mood_keyboard("energy"), parse_mode="HTML")
+                    reply_markup=mood_keyboard("energy", day_str), parse_mode="HTML")
             else:
                 await query.edit_message_text(f"Energy {score}/5 saved. 👍 See trends with /streak.")
             return
