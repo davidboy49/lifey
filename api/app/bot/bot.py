@@ -82,7 +82,7 @@ KEYBOARD_BUTTONS = {
     "💥 Master": "master",
     "✍️ Log": "log",
     "📋 Notes": "notes",
-    "🙂 Mood": "mood",
+    "☀️ Feeling": "feeling",
     "💪 Gym": "gym",
     "📊 Health": "health",
     "🔄 Sync": "sync",
@@ -93,7 +93,7 @@ def get_reply_keyboard():
     return ReplyKeyboardMarkup(
         [
             ["🧘 Urge", "🔥 Streak", "💥 Master"],
-            ["✍️ Log", "📋 Notes", "🙂 Mood"],
+            ["✍️ Log", "📋 Notes", "☀️ Feeling"],
             ["💪 Gym", "📊 Health", "🔄 Sync", "🏠 Menu"],
         ],
         resize_keyboard=True,
@@ -113,7 +113,7 @@ def get_home_keyboard():
         ],
         [
             InlineKeyboardButton("💥 Master (slip)", callback_data="cmd:master"),
-            InlineKeyboardButton("🙂 Mood & Energy", callback_data="cmd:mood"),
+            InlineKeyboardButton("☀️ Waking Feeling", callback_data="cmd:feeling"),
         ],
         [
             InlineKeyboardButton("💭 My Reasons (Why)", callback_data="cmd:why"),
@@ -157,7 +157,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🏠 /menu - Tap-to-use menu of every feature\n"
         "🔥 /streak - Master-free streak & your own before/after data\n"
         "🧘 /urge - Log an urge you resisted\n"
-        "🙂 /mood - Rate today's mood & energy\n"
         "💭 /why - Your reasons for quitting, shown when an urge hits\n"
         "🗑 /undo - Fix a mislog: delete a recent entry\n"
         "🔄 /sync - Smart sync Garmin data (e.g. `/sync` or `/sync 7`)\n"
@@ -494,6 +493,7 @@ async def master_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await reply_target(update).reply_text(master_logged_text(qty, today_str),
                                           reply_markup=undo_keyboard(log_id), parse_mode="HTML")
+    await ask_slip_why(reply_target(update), context, log_id)
 
 
 def reasons_block() -> str:
@@ -665,20 +665,15 @@ async def urge_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     schedule_urge_followup(context, update.effective_chat.id)
 
 
-def mood_keyboard(kind: str):
-    return InlineKeyboardMarkup([[
-        InlineKeyboardButton(label, callback_data=f"{kind}:{n}")
-        for n, label in enumerate(["1 😞", "2 🙁", "3 😐", "4 🙂", "5 😄"], start=1)
-    ]])
+SLIP_WHY_PROMPT = ("💭 <b>What led to it?</b> A few words in your own reply, "
+                   "e.g. bored, stressed, late night on the phone.")
 
 
-async def mood_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await check_auth(update, context):
-        return
-    await reply_target(update).reply_text(
-        "🙂 <b>How is your mood today?</b> (1 = very low, 5 = great)",
-        reply_markup=mood_keyboard("mood"), parse_mode="HTML",
-    )
+async def ask_slip_why(target, context: ContextTypes.DEFAULT_TYPE, log_id: int) -> None:
+    """Wait for the next typed message and save it as the reason on this Master entry."""
+    context.user_data["slip_why"] = {"log_id": log_id}
+    await target.reply_text(SLIP_WHY_PROMPT, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(
+        [[InlineKeyboardButton("Skip", callback_data="slipwhy:skip")]]))
 
 
 def checkin_keyboard():
@@ -1171,6 +1166,14 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         await COMMANDS[KEYBOARD_BUTTONS[text]](update, context)
         return
 
+    slip_why = context.user_data.pop("slip_why", None)
+    if slip_why:
+        saved = db.set_log_note(slip_why["log_id"], text)
+        await update.message.reply_text(
+            f"💭 Saved with today's Master entry: <i>{html.escape(text)}</i>" if saved
+            else "That Master entry was removed, so this wasn't saved.", parse_mode="HTML")
+        return
+
     habit = context.user_data.get("habit_typed")
     if habit:
         count = checkin.parse_count(text)
@@ -1267,16 +1270,13 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
                                                            tag=quit_tracker.CLEAN_TAG, note="", value=0))
                 text = f"✅ <b>Clean day logged.</b> Streak: {days(s['current_streak'])}. Keep going."
             await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
-            await query.message.reply_text("🙂 <b>How was your mood today?</b> (1 = very low, 5 = great)",
-                                           reply_markup=mood_keyboard("mood"), parse_mode="HTML")
             return
 
         if data == "quit:slip":
             log_id = db.log_activity(date_str=today_str, category="master", tag="master", note="", value=1.0)
             await query.edit_message_text(master_logged_text(1.0, today_str),
                                           reply_markup=undo_keyboard(log_id), parse_mode="HTML")
-            await query.message.reply_text("🙂 <b>How was your mood today?</b> (1 = very low, 5 = great)",
-                                           reply_markup=mood_keyboard("mood"), parse_mode="HTML")
+            await ask_slip_why(query.message, context, log_id)
             return
 
         if data == "gym:done" or data.startswith("gym:did:"):
@@ -1333,16 +1333,9 @@ async def callback_query_handler(update: Update, context: ContextTypes.DEFAULT_T
             schedule_urge_followup(context, query.message.chat.id, 10)
             return
 
-        if data.startswith(("mood:", "energy:")):
-            kind, score = data.split(":")
-            db.log_activity(date_str=today_str, category=quit_tracker.WELLBEING_CATEGORY,
-                            tag=kind, note="", value=float(score))
-            if kind == "mood":
-                await query.edit_message_text(
-                    f"Mood {score}/5 saved.\n⚡ <b>And your energy?</b> (1 = drained, 5 = full)",
-                    reply_markup=mood_keyboard("energy"), parse_mode="HTML")
-            else:
-                await query.edit_message_text(f"Energy {score}/5 saved. 👍 See trends with /streak.")
+        if data == "slipwhy:skip":
+            context.user_data.pop("slip_why", None)
+            await query.edit_message_text("Skipped. 👍")
             return
 
         if data == "menu_main":
@@ -1503,7 +1496,6 @@ COMMANDS = {
     "menu": menu_command,
     "streak": streak_command,
     "urge": urge_command,
-    "mood": mood_command,
     "why": why_command,
     "undo": undo_command,
     "log": log_command,
@@ -1529,7 +1521,6 @@ BOT_COMMANDS = [
     BotCommand("menu", "Tap-to-use menu of every feature"),
     BotCommand("streak", "Master-free streak & your data"),
     BotCommand("urge", "Log an urge you resisted"),
-    BotCommand("mood", "Rate mood & energy"),
     BotCommand("why", "Your reasons for quitting: /why <reason>"),
     BotCommand("undo", "Fix a mistake: delete a recent entry"),
     BotCommand("log", "Log a habit or note"),
@@ -1609,7 +1600,6 @@ def main():
     app.add_handler(CommandHandler("menu", menu_command))
     app.add_handler(CommandHandler("streak", streak_command))
     app.add_handler(CommandHandler("urge", urge_command))
-    app.add_handler(CommandHandler("mood", mood_command))
     app.add_handler(CommandHandler("why", why_command))
     app.add_handler(CommandHandler("undo", undo_command))
     app.add_handler(CommandHandler("log", log_command))

@@ -42,8 +42,52 @@ def test_master_with_explicit_count_logs_directly(monkeypatch):
     monkeypatch.setattr(db, "get_quit_logs", lambda: [])
     message = SimpleNamespace(reply_text=AsyncMock())
     update = SimpleNamespace(effective_chat=SimpleNamespace(id=123), message=message)
-    asyncio.run(bot.master_command(update, SimpleNamespace(args=["2"])))
+    context = SimpleNamespace(args=["2"], user_data={})
+    asyncio.run(bot.master_command(update, context))
     assert [(e["category"], e["value"]) for e in logged] == [("master", 2.0)]
+    assert "What led to it?" in message.reply_text.call_args.args[0]
+    assert context.user_data["slip_why"] == {"log_id": None}
+
+
+def test_slip_asks_why_and_saves_the_reply_on_the_master_entry(monkeypatch):
+    monkeypatch.setattr(bot, "AUTHORIZED_CHAT_ID", "123")
+    monkeypatch.setattr(db, "log_activity", lambda **kw: 41)
+    monkeypatch.setattr(db, "get_quit_logs", lambda: [])
+    context = SimpleNamespace(args=None, job_queue=None, user_data={})
+    message = SimpleNamespace(reply_text=AsyncMock())
+    query = SimpleNamespace(data="quit:slip", answer=AsyncMock(), message=message, edit_message_text=AsyncMock())
+    update = SimpleNamespace(effective_chat=SimpleNamespace(id=123), message=None, callback_query=query)
+    asyncio.run(bot.callback_query_handler(update, context))
+    prompt = message.reply_text.call_args
+    assert "What led to it?" in prompt.args[0] and "Mood" not in prompt.args[0]
+    assert [b.callback_data for row in prompt.kwargs["reply_markup"].inline_keyboard for b in row] == ["slipwhy:skip"]
+
+    notes = []
+    monkeypatch.setattr(db, "set_log_note", lambda i, n: notes.append((i, n)) or True)
+    monkeypatch.setattr(db, "log_activity", lambda **kw: pytest.fail("the reason must not become a free note"))
+    reply = SimpleNamespace(text="bored, late <night>", reply_text=AsyncMock())
+    asyncio.run(bot.text_message_handler(SimpleNamespace(effective_chat=SimpleNamespace(id=123), message=reply), context))
+    assert notes == [(41, "bored, late <night>")] and "slip_why" not in context.user_data
+    assert "late &lt;night&gt;" in reply.reply_text.call_args.args[0]
+
+
+def test_skipping_the_why_saves_nothing(monkeypatch):
+    monkeypatch.setattr(bot, "AUTHORIZED_CHAT_ID", "123")
+    context = SimpleNamespace(args=None, job_queue=None, user_data={"slip_why": {"log_id": 41}})
+    query = SimpleNamespace(data="slipwhy:skip", answer=AsyncMock(), message=None, edit_message_text=AsyncMock())
+    update = SimpleNamespace(effective_chat=SimpleNamespace(id=123), message=None, callback_query=query)
+    asyncio.run(bot.callback_query_handler(update, context))
+    assert context.user_data == {} and "Skipped" in query.edit_message_text.call_args.args[0]
+
+
+def test_clean_day_no_longer_asks_mood(monkeypatch):
+    monkeypatch.setattr(bot, "AUTHORIZED_CHAT_ID", "123")
+    monkeypatch.setattr(db, "get_quit_logs", lambda: [])
+    monkeypatch.setattr(db, "log_activity", lambda **kw: 5)
+    message, query = _callback("quit:clean", monkeypatch)
+    assert "Clean day logged" in query.edit_message_text.call_args.args[0]
+    message.reply_text.assert_not_called()
+    assert "mood" not in bot.COMMANDS and "🙂 Mood" not in bot.KEYBOARD_BUTTONS
 
 
 def test_urge_schedules_a_follow_up(monkeypatch):

@@ -143,6 +143,13 @@ def delete_activity_log(log_id: int) -> bool:
     return n > 0
 
 
+def set_log_note(log_id: int, note: str) -> bool:
+    with database.connect() as conn:
+        n = conn.execute("UPDATE journal.activity_logs SET note=%s WHERE id=%s", (note, log_id)).rowcount
+        conn.commit()
+        return n > 0
+
+
 def set_log_date(log_id: int, date_str: str) -> bool:
     with database.connect() as conn:
         n = conn.execute("UPDATE journal.activity_logs SET date=%s WHERE id=%s", (date_str, log_id)).rowcount
